@@ -19,9 +19,12 @@ def get_config():
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--clip', type=float, default=10, help='gradient clipping')
     parser.add_argument('--device_id', type=int, default=1, help='device id(default : 0)')
-    parser.add_argument('--workers', type=int, default=4, help='number of workers')
-    # parser.add_argument('--windows_size', type=int, default=3, help='number of window size for timeseries data')
+
     parser.add_argument('--shuffle_data', action='store_true', default=True)
+    parser.add_argument('--workers', type=int, default=4, help='number of workers')
+    parser.add_argument('--seq_len', type=int, default=3, help='sequence length')
+    parser.add_argument('--n_features', type=int, default=64, help='number of features')
+    parser.add_argument('--embedding_dim', type=int, default=16, help='embedding dimension')
 
 
     parser.add_argument('--object_select_mode', action='store_true', default=False)
@@ -45,32 +48,39 @@ def get_config():
 def train(model, args, train_loader, valid_loader, epoch):
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.MSELoss().to(args.device_id)
-    model = model.train()
 
     multisensory_fusion = Multisensory_Fusion(args)
     for epoch in range(args.batch_size):
+        model.train()
         train_losses = []
         for r, d, m, t in train_loader:
-            optimizer.zero_grad()
-            train_input_representation = multisensory_fusion.fwd(r, d, m, t)
-            train_input_representation = train_input_representation.to(args.device_id)
-            train_output = model(train_input_representation)
-            loss = criterion(train_output, train_input_representation)
-            loss.backward()
+            try:
+                optimizer.zero_grad()
+                train_input_representation = multisensory_fusion.fwd(r, d, m, t)
+                train_input_representation = train_input_representation.to(args.device_id)
+                train_output = model(train_input_representation)
+                loss = criterion(train_output, train_input_representation)
+                loss.backward()
 
-            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            optimizer.step()
-            train_losses.append(loss.item())
+                # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+                optimizer.step()
+                train_losses.append(loss.item())
+            except Exception as e:
+                pass
 
         val_losses = []
-        model = model.eval()
+        model.eval()
         with torch.no_grad():
-            for seq_true in valid_loader:
-                seq_true = seq_true.to(args.device_id)
-                seq_pred = model(seq_true)
-                loss = criterion(seq_pred, seq_true)
-                val_losses.append(loss.item())
+            for r, d, m, t in valid_loader:
+                try:
+                    valid_input_representation = multisensory_fusion.fwd(r, d, m, t)
+                    valid_input_representation = valid_input_representation.to(args.device_id)
+                    valid_output = model(valid_input_representation)
+                    loss = criterion(valid_output, valid_input_representation)
+                    val_losses.append(loss.item())
+                except Exception as e:
+                    pass
         train_loss = np.mean(train_losses)
         val_loss = np.mean(val_losses)
         print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss}')
@@ -82,12 +92,14 @@ def evaluate(model, args, test_loader, valid_loader, result_save=False):
     model.eval()
     predictions, losses = [], []
     criterion = nn.MSELoss().to(args.device_id)
+    multisensory_fusion = Multisensory_Fusion(args)
     with torch.no_grad():
-        for seq_true in test_loader:
-            seq_true = seq_true.to(args.device_id)
-            seq_pred = model(seq_true)
-            loss = criterion(seq_pred, seq_true)
-            predictions.append(seq_pred.cpu().numpy().flatten())
+        for r, d, m, t in test_loader:
+            test_input_representation = multisensory_fusion.fwd(r, d, m, t)
+            test_input_representation = test_input_representation.to(args.device_id)
+            test_output = model(test_input_representation)
+            loss = criterion(test_output, test_input_representation)
+            predictions.append(test_output.cpu().numpy().flatten())
             losses.append(loss.item())
         if result_save:
             df = pd.DataFrame([{'base_auroc': 0, 'sap_auroc': 0, 'base_f1score': 0, 'sap_f1score' : 0}])
@@ -99,17 +111,17 @@ if __name__ == '__main__':
     from model import model
     args = get_config()
     train_loader, valid_loader, test_loader = get_loaders(args)
-    seq_len = 1
-    n_features = 64 * 3
-    model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=64)
+    seq_len = args.seq_len
+    n_features = args.n_features
+    model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=16)
     model = model.to(args.device_id)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.MSELoss()
 
     # train
-    for epoch in range(args.epochs):
-        train(model, args, train_loader, valid_loader, epoch)
-        evaluate(model, args, test_loader, valid_loader)
+    # for epoch in range(args.epochs):
+    train(model, args, train_loader, valid_loader, 0)
+    evaluate(model, args, test_loader, valid_loader)
 
     # save eval
     torch.save(model.state_dict(), args.save_model_name)

@@ -31,5 +31,5 @@ class Multisensory_Fusion(): # nn.Module
                     result = tt
             out = torch.cat((out, result), 0)
 
-        out = out.view(-1, 64 * 3)
+        out = out.view(-1, 3, 64)
         return out

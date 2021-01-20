@@ -22,7 +22,7 @@ class LSTM_AE(nn.Module):
 
 class Encoder(nn.Module):
 
-  def __init__(self, seq_len, args, n_features, embedding_dim=64):
+  def __init__(self, seq_len, args, n_features, embedding_dim=16):
     super(Encoder, self).__init__()
     self.args = args
     self.seq_len, self.n_features = seq_len, n_features
@@ -46,15 +46,13 @@ class Encoder(nn.Module):
     x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
     x, (_, _) = self.rnn1(x)
     x, (hidden_n, _) = self.rnn2(x)
-    # print(x.shape)
-    # print(hidden_n.shape)
     # return x.reshape((self.args.batch_size, self.seq_len, self.embedding_dim))
     # return hidden_n.reshape((self.n_features, self.embedding_dim))
     return hidden_n.reshape((self.args.batch_size, self.embedding_dim))
 
 class Decoder(nn.Module):
 
-  def __init__(self, seq_len, args, input_dim=64, n_features=1):
+  def __init__(self, seq_len, args, input_dim=16, n_features=1):
     super(Decoder, self).__init__()
     self.args = args
     self.seq_len, self.input_dim = seq_len, input_dim
