@@ -22,19 +22,14 @@ class Multisensory_Fusion(): # nn.Module
         m = m.to(self.args.device_id)
         t = t.to(self.args.device_id)
         out = torch.Tensor().to(self.args.device_id)
-        print(t.shape)
         for i in range(self.batch_size):
             if t is not None:
-
                 tt = t[i].unsqueeze(1).unsqueeze(1)
                 tt = tt.repeat(1, 8, 8)
                 tt = tt.unsqueeze(0)
-                print(tt.shape)
                 if self.unimodal:
                     result = tt
             out = torch.cat((out, result), 0)
 
-        print(out.shape)
         out = out.view(-1, 64 * 3)
-        print(out.shape)
         return out

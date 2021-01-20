@@ -99,7 +99,7 @@ if __name__ == '__main__':
     from model import model
     args = get_config()
     train_loader, valid_loader, test_loader = get_loaders(args)
-    seq_len = 3
+    seq_len = 1
     n_features = 64 * 3
     model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=64)
     model = model.to(args.device_id)

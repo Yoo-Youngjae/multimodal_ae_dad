@@ -9,8 +9,8 @@ class LSTM_AE(nn.Module):
     def __init__(self, args, seq_len, n_features, embedding_dim=64):
         super(LSTM_AE, self).__init__()
         self.args = args
-        self.encoder = Encoder(seq_len, n_features, embedding_dim).to(args.device_id)
-        self.decoder = Decoder(seq_len, embedding_dim, n_features).to(args.device_id)
+        self.encoder = Encoder(seq_len, args, n_features, embedding_dim).to(args.device_id)
+        self.decoder = Decoder(seq_len, args, embedding_dim, n_features).to(args.device_id)
 
     def forward(self, x):
         x = self.encoder(x)
@@ -20,9 +20,9 @@ class LSTM_AE(nn.Module):
 
 class Encoder(nn.Module):
 
-  def __init__(self, seq_len, n_features, embedding_dim=64):
-
+  def __init__(self, seq_len, args, n_features, embedding_dim=64):
     super(Encoder, self).__init__()
+    self.args = args
     self.seq_len, self.n_features = seq_len, n_features
     self.embedding_dim, self.hidden_dim = embedding_dim, 2 * embedding_dim
 
@@ -41,15 +41,19 @@ class Encoder(nn.Module):
     )
 
   def forward(self, x):
-    x = x.reshape((-1, self.seq_len, self.n_features))
+    x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
     x, (_, _) = self.rnn1(x)
     x, (hidden_n, _) = self.rnn2(x)
-    return hidden_n.reshape((self.n_features, self.embedding_dim))
+    # print(x.shape)
+    # print(hidden_n.shape)
+    # return x.reshape((self.args.batch_size, self.seq_len, self.embedding_dim))
+    return x
 
 class Decoder(nn.Module):
 
-  def __init__(self, seq_len, input_dim=64, n_features=1):
+  def __init__(self, seq_len, args, input_dim=64, n_features=1):
     super(Decoder, self).__init__()
+    self.args = args
     self.seq_len, self.input_dim = seq_len, input_dim
     self.hidden_dim, self.n_features = 2 * input_dim, n_features
     self.rnn1 = nn.LSTM(
