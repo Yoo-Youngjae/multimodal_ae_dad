@@ -12,7 +12,7 @@ import numpy as np
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
-    parser.add_argument('--epochs', type=int, default=30, help='upper epoch limit')
+    parser.add_argument('--epochs', type=int, default=1, help='upper epoch limit') # 30
     parser.add_argument('--batch_size', type=int, default=96, help='batch size')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
@@ -95,12 +95,15 @@ def evaluate(model, args, test_loader, valid_loader, result_save=False):
     multisensory_fusion = Multisensory_Fusion(args)
     with torch.no_grad():
         for r, d, m, t in test_loader:
-            test_input_representation = multisensory_fusion.fwd(r, d, m, t)
-            test_input_representation = test_input_representation.to(args.device_id)
-            test_output = model(test_input_representation)
-            loss = criterion(test_output, test_input_representation)
-            predictions.append(test_output.cpu().numpy().flatten())
-            losses.append(loss.item())
+            try:
+                test_input_representation = multisensory_fusion.fwd(r, d, m, t)
+                test_input_representation = test_input_representation.to(args.device_id)
+                test_output = model(test_input_representation)
+                loss = criterion(test_output, test_input_representation)
+                predictions.append(test_output.cpu().numpy().flatten())
+                losses.append(loss.item())
+            except Exception as e:
+                pass
         if result_save:
             df = pd.DataFrame([{'base_auroc': 0, 'sap_auroc': 0, 'base_f1score': 0, 'sap_f1score' : 0}])
             return df
@@ -119,9 +122,9 @@ if __name__ == '__main__':
     criterion = nn.MSELoss()
 
     # train
-    # for epoch in range(args.epochs):
-    train(model, args, train_loader, valid_loader, 0)
-    evaluate(model, args, test_loader, valid_loader)
+    for epoch in range(args.epochs):
+        train(model, args, train_loader, valid_loader, epoch)
+        evaluate(model, args, test_loader, valid_loader)
 
     # save eval
     torch.save(model.state_dict(), args.save_model_name)
