@@ -19,6 +19,10 @@ def get_config():
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--clip', type=float, default=10, help='gradient clipping')
     parser.add_argument('--device_id', type=int, default=1, help='device id(default : 0)')
+    parser.add_argument('--workers', type=int, default=4, help='number of workers')
+    # parser.add_argument('--windows_size', type=int, default=3, help='number of window size for timeseries data')
+    parser.add_argument('--shuffle_data', action='store_true', default=True)
+
 
     parser.add_argument('--object_select_mode', action='store_true', default=False)
     parser.add_argument('--object_type', type=str, default="bottle")
@@ -38,7 +42,7 @@ def get_config():
     return args
 
 
-def train(model, args, train_loader, valid_loader):
+def train(model, args, train_loader, valid_loader, epoch):
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.MSELoss().to(args.device_id)
     model = model.train()
@@ -46,9 +50,9 @@ def train(model, args, train_loader, valid_loader):
     multisensory_fusion = Multisensory_Fusion(args)
     for epoch in range(args.batch_size):
         train_losses = []
-        for train_input in train_loader:
+        for r, d, m, t in train_loader:
             optimizer.zero_grad()
-            train_input_representation = multisensory_fusion(train_input)
+            train_input_representation = multisensory_fusion.fwd(r, d, m, t)
             train_input_representation = train_input_representation.to(args.device_id)
             train_output = model(train_input_representation)
             loss = criterion(train_output, train_input_representation)
@@ -96,7 +100,7 @@ if __name__ == '__main__':
     args = get_config()
     train_loader, valid_loader, test_loader = get_loaders(args)
     seq_len = 3
-    n_features = 1728
+    n_features = 64 * 3
     model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=64)
     model = model.to(args.device_id)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -104,7 +108,7 @@ if __name__ == '__main__':
 
     # train
     for epoch in range(args.epochs):
-        train(model, args, train_loader, valid_loader)
+        train(model, args, train_loader, valid_loader, epoch)
         evaluate(model, args, test_loader, valid_loader)
 
     # save eval
