@@ -4,6 +4,8 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 
+# https://github.com/curiousily/Getting-Things-Done-with-Pytorch/blob/master/06.time-series-anomaly-detection-ecg.ipynb
+
 class LSTM_AE(nn.Module):
 
     def __init__(self, args, seq_len, n_features, embedding_dim=64):
@@ -47,7 +49,8 @@ class Encoder(nn.Module):
     # print(x.shape)
     # print(hidden_n.shape)
     # return x.reshape((self.args.batch_size, self.seq_len, self.embedding_dim))
-    return x
+    # return hidden_n.reshape((self.n_features, self.embedding_dim))
+    return hidden_n.reshape((self.args.batch_size, self.embedding_dim))
 
 class Decoder(nn.Module):
 
@@ -73,9 +76,10 @@ class Decoder(nn.Module):
     self.output_layer = nn.Linear(self.hidden_dim, n_features)
 
   def forward(self, x):
-    x = x.repeat(self.seq_len, self.n_features)
-    x = x.reshape((self.n_features, self.seq_len, self.input_dim))
+    # x = x.repeat(self.seq_len, self.n_features)
+    x = x.repeat(self.seq_len, 1)
+    x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
     x, (hidden_n, cell_n) = self.rnn1(x)
     x, (hidden_n, cell_n) = self.rnn2(x)
-    x = x.reshape((self.seq_len, self.hidden_dim))
+    x = x.reshape((self.args.batch_size, self.seq_len, self.hidden_dim))
     return self.output_layer(x)
