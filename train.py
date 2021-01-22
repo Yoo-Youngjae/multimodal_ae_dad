@@ -6,14 +6,18 @@ from matplotlib import pyplot as plt
 from torch import optim
 from modules.data_loader import get_loaders
 from modules.Multisensory_Fusion import Multisensory_Fusion
+from modules.evaluation_metric import get_recon_loss
 import pandas as pd
 import numpy as np
+import seaborn as sns
+
+
 
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
-    parser.add_argument('--epochs', type=int, default=1, help='upper epoch limit') # 30
-    parser.add_argument('--batch_size', type=int, default=96, help='batch size')
+    parser.add_argument('--epochs', type=int, default=3, help='upper epoch limit') # 30
+    parser.add_argument('--batch_size', type=int, default=24, help='batch size')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout applied to layers (0 = no dropout)')
@@ -45,15 +49,15 @@ def get_config():
     return args
 
 
-def train(model, args, train_loader, valid_loader, epoch):
+def train(model, args, train_loader, valid_loader):
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.MSELoss().to(args.device_id)
 
     multisensory_fusion = Multisensory_Fusion(args)
-    for epoch in range(args.batch_size):
+    for epoch in range(args.epochs):
         model.train()
         train_losses = []
-        for r, d, m, t in train_loader:
+        for r, d, m, t, label in train_loader:
             try:
                 optimizer.zero_grad()
                 train_input_representation = multisensory_fusion.fwd(r, d, m, t)
@@ -67,12 +71,14 @@ def train(model, args, train_loader, valid_loader, epoch):
                 optimizer.step()
                 train_losses.append(loss.item())
             except Exception as e:
+                # print(e)
                 pass
+
 
         val_losses = []
         model.eval()
         with torch.no_grad():
-            for r, d, m, t in valid_loader:
+            for r, d, m, t, label in valid_loader:
                 try:
                     valid_input_representation = multisensory_fusion.fwd(r, d, m, t)
                     valid_input_representation = valid_input_representation.to(args.device_id)
@@ -81,6 +87,7 @@ def train(model, args, train_loader, valid_loader, epoch):
                     val_losses.append(loss.item())
                 except Exception as e:
                     pass
+
         train_loss = np.mean(train_losses)
         val_loss = np.mean(val_losses)
         print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss}')
@@ -89,12 +96,25 @@ def train(model, args, train_loader, valid_loader, epoch):
 
 
 def evaluate(model, args, test_loader, valid_loader, result_save=False):
+    args.batch_size = 1
     model.eval()
     predictions, losses = [], []
     criterion = nn.MSELoss().to(args.device_id)
     multisensory_fusion = Multisensory_Fusion(args)
+    labels = []
+    val_losses = []
     with torch.no_grad():
-        for r, d, m, t in test_loader:
+        for r, d, m, t, label in valid_loader:
+            try:
+                valid_input_representation = multisensory_fusion.fwd(r, d, m, t)
+                valid_input_representation = valid_input_representation.to(args.device_id)
+                valid_output = model(valid_input_representation)
+                loss = criterion(valid_output, valid_input_representation)
+                val_losses.append(loss.item())
+            except Exception as e:
+                pass
+
+        for r, d, m, t, label in test_loader:
             try:
                 test_input_representation = multisensory_fusion.fwd(r, d, m, t)
                 test_input_representation = test_input_representation.to(args.device_id)
@@ -102,12 +122,16 @@ def evaluate(model, args, test_loader, valid_loader, result_save=False):
                 loss = criterion(test_output, test_input_representation)
                 predictions.append(test_output.cpu().numpy().flatten())
                 losses.append(loss.item())
+                labels.append(label)
             except Exception as e:
                 pass
+        print(f'test loss {np.mean(losses)}')
+        base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(losses, val_losses, labels)
+        print('base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls', base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls)
         if result_save:
             df = pd.DataFrame([{'base_auroc': 0, 'sap_auroc': 0, 'base_f1score': 0, 'sap_f1score' : 0}])
-            return df
-    print(f'test loss {np.mean(losses)}')
+            return df, losses
+
 
 
 if __name__ == '__main__':
@@ -122,15 +146,15 @@ if __name__ == '__main__':
     criterion = nn.MSELoss()
 
     # train
-    for epoch in range(args.epochs):
-        train(model, args, train_loader, valid_loader, epoch)
-        evaluate(model, args, test_loader, valid_loader)
+
+    train(model, args, train_loader, valid_loader)
+    evaluate(model, args, test_loader, valid_loader)
 
     # save eval
     torch.save(model.state_dict(), args.save_model_name)
     df_eval = pd.DataFrame([{'base_auroc': 0, 'sap_auroc': 0, 'base_f1score':0, 'sap_f1score':0}])
     for i in range(30):
-        df = evaluate(model, args, test_loader, valid_loader, result_save=True)
+        df, losses = evaluate(model, args, test_loader, valid_loader, result_save=True)
         df_eval = df_eval.append(df, ignore_index=True)
 
     df_eval[1:].to_csv(args.saved_result_csv_name)
