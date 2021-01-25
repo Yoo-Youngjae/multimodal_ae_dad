@@ -17,12 +17,12 @@ def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
     parser.add_argument('--epochs', type=int, default=3, help='upper epoch limit') # 30
-    parser.add_argument('--batch_size', type=int, default=24, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=64, help='batch size')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--clip', type=float, default=10, help='gradient clipping')
-    parser.add_argument('--device_id', type=int, default=1, help='device id(default : 0)')
+    parser.add_argument('--device_id', type=int, default=0, help='device id(default : 0)')
 
     parser.add_argument('--shuffle_data', action='store_true', default=True)
     parser.add_argument('--workers', type=int, default=4, help='number of workers')
@@ -140,7 +140,8 @@ if __name__ == '__main__':
     train_loader, valid_loader, test_loader = get_loaders(args)
     seq_len = args.seq_len
     n_features = args.n_features
-    model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=16)
+    embedding_dim = args.embedding_dim
+    model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
     model = model.to(args.device_id)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.MSELoss()
@@ -153,7 +154,7 @@ if __name__ == '__main__':
     # save eval
     torch.save(model.state_dict(), args.save_model_name)
     df_eval = pd.DataFrame([{'base_auroc': 0, 'sap_auroc': 0, 'base_f1score':0, 'sap_f1score':0}])
-    for i in range(30):
+    for i in range(1):
         df, losses = evaluate(model, args, test_loader, valid_loader, result_save=True)
         df_eval = df_eval.append(df, ignore_index=True)
 

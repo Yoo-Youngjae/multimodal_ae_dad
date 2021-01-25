@@ -10,12 +10,14 @@ from torchvision import models, transforms
 import random
 
 class HsrDataset(Dataset):
-    def __init__(self, args, idxs, dataframe):
+    def __init__(self, args, idxs, dataframe, test=False):
         self.args = args
         self.idxs = idxs
         self.dataframe = dataframe
-
-        self.batch_size = args.batch_size
+        if test:
+            self.batch_size = 1
+        else:
+            self.batch_size = args.batch_size
         self.unimodal = True
         self.All = False
         self.force_torque = False
@@ -25,6 +27,7 @@ class HsrDataset(Dataset):
             self.unimodal = False
         elif args.sensor == 'force_torque':
             self.force_torque = True
+
 
     def __len__(self):
         return len(self.idxs)
@@ -100,7 +103,7 @@ def split_train_test(full_dataframe, args):
     # valid 10200
     validset = HsrDataset(args, validset_idxs, full_dataframe)
     # test 15000
-    testset = HsrDataset(args, testset_idxs+abnormal_idx, full_dataframe)
+    testset = HsrDataset(args, testset_idxs+abnormal_idx, full_dataframe, test=True)
     return trainset, validset, testset
 
 

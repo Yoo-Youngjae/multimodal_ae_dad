@@ -37,7 +37,7 @@ def get_f1_score(valid_score, test_score, test_label, f1_quantiles=[.90]):
     threshold = np.quantile(valid_score, f1_quantiles)
     predictions = test_score > threshold
     p = (predictions & test_label).sum() / float(predictions.sum())
-    r = (predictions & test_label).sum() / float(test_label.sum())
+    r = (predictions & test_label).sum() / float(sum(test_label)) #test_label.sum()
 
     f1s = p * r * 2 / (p + r)
 
@@ -45,7 +45,7 @@ def get_f1_score(valid_score, test_score, test_label, f1_quantiles=[.90]):
 
 
 def get_recon_loss(test_losses, val_losses, labels, f1_quantiles=[.90]):
-
+    labels = [i[0].item() for i in labels]
     loss_auc_roc = get_auc_roc(test_losses, labels)
     print('AUROC',loss_auc_roc)
     loss_auc_prc = get_auc_prc(test_losses, labels)
@@ -53,8 +53,7 @@ def get_recon_loss(test_losses, val_losses, labels, f1_quantiles=[.90]):
     loss_f1s, threshold = get_f1_score( val_losses,
                                         test_losses,
                                         labels,
-                                        f1_quantiles=f1_quantiles,
-                                        )
+                                        f1_quantiles=f1_quantiles)
     precision, recall = get_confusion_matrix(test_losses, labels, threshold)
     return loss_auc_roc, loss_auc_prc, loss_f1s, precision, recall
 
