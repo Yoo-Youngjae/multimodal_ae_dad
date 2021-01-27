@@ -144,6 +144,7 @@ if __name__ == '__main__':
     embedding_dim = args.embedding_dim
     model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
     model = model.to(args.device_id)
+    print(model)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.MSELoss()
 
