@@ -19,7 +19,7 @@ def get_config():
     parser.add_argument('--epochs', type=int, default=3, help='upper epoch limit') # 30
     parser.add_argument('--batch_size', type=int, default=64, help='batch size')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
-    parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
+    parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--clip', type=float, default=10, help='gradient clipping')
     parser.add_argument('--device_id', type=int, default=0, help='device id(default : 0)')
@@ -29,6 +29,7 @@ def get_config():
     parser.add_argument('--seq_len', type=int, default=3, help='sequence length')
     parser.add_argument('--n_features', type=int, default=64, help='number of features')
     parser.add_argument('--embedding_dim', type=int, default=16, help='embedding dimension')
+    parser.add_argument('--n_layer', type=int, default=5, help='number of layer(encoder)')
 
 
     parser.add_argument('--object_select_mode', action='store_true', default=False)
