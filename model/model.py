@@ -60,9 +60,6 @@ class Encoder(nn.Module):
                              num_layers=1,
                              batch_first=use_batch_norm)
 
-
-
-
     def forward(self, x):
         x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
         x, (_, _) = self.lstm1(x)
@@ -70,8 +67,7 @@ class Encoder(nn.Module):
         x, (_, _) = self.lstm3(x)
         x, (_, _) = self.lstm4(x)
         x, (hidden_n, _) = self.lstm5(x)
-        # print('x',x.shape)
-        # print('self.args.batch_size', self.args.batch_size, 'self.embedding_dim', self.embedding_dim)
+
         return x # x.reshape((self.args.batch_size, self.embedding_dim)) # hidden_n
 
 class Decoder(nn.Module):

@@ -16,7 +16,7 @@ import seaborn as sns
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
-    parser.add_argument('--epochs', type=int, default=3, help='upper epoch limit') # 30
+    parser.add_argument('--epochs', type=int, default=5, help='upper epoch limit') # 30
     parser.add_argument('--batch_size', type=int, default=64, help='batch size')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
@@ -72,7 +72,7 @@ def train(model, args, train_loader, valid_loader):
                 optimizer.step()
                 train_losses.append(loss.item())
             except Exception as e:
-                print(e)
+                # print(e)
                 pass
 
 
