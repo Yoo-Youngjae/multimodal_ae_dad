@@ -72,7 +72,7 @@ def train(model, args, train_loader, valid_loader):
                 optimizer.step()
                 train_losses.append(loss.item())
             except Exception as e:
-                # print(e)
+                print(e)
                 pass
 
 

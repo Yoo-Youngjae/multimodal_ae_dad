@@ -25,6 +25,9 @@ class Encoder(nn.Module):
     def __init__(self, seq_len, args, n_features, embedding_dim=16):
         super(Encoder, self).__init__()
         self.args = args
+        self.seq_len = seq_len
+        self.n_features = n_features
+        self.embedding_dim = embedding_dim
 
         use_batch_norm = False
 
@@ -62,19 +65,22 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
-        x, (hidden_n, _) = self.lstm1(x)
-        x, (hidden_n, _) = self.lstm2(x)
-        x, (hidden_n, _) = self.lstm3(x)
-        x, (hidden_n, _) = self.lstm4(x)
+        x, (_, _) = self.lstm1(x)
+        x, (_, _) = self.lstm2(x)
+        x, (_, _) = self.lstm3(x)
+        x, (_, _) = self.lstm4(x)
         x, (hidden_n, _) = self.lstm5(x)
-
-        return hidden_n.reshape((self.args.batch_size, self.embedding_dim))
+        # print('x',x.shape)
+        # print('self.args.batch_size', self.args.batch_size, 'self.embedding_dim', self.embedding_dim)
+        return x # x.reshape((self.args.batch_size, self.embedding_dim)) # hidden_n
 
 class Decoder(nn.Module):
 
     def __init__(self, seq_len, args, input_dim=16, n_features=1):
         super(Decoder, self).__init__()
         self.args = args
+        self.seq_len = seq_len
+        self.n_features = n_features
         use_batch_norm = False
 
         hidden_sizes = get_hidden_layer_sizes(input_dim, n_features, args.n_layer-1)
@@ -107,15 +113,14 @@ class Decoder(nn.Module):
                              num_layers=1,
                              batch_first=use_batch_norm)
 
-
         self.output_layer = nn.Linear(layer_sizes[4], layer_sizes[5])
 
 
 
     def forward(self, x):
         # x = x.repeat(self.seq_len, self.n_features)
-        x = x.repeat(self.seq_len, 1)
-        x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
+        # x = x.repeat(self.seq_len, 1)
+        # x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
         x, (hidden_n, _) = self.lstm1(x)
         x, (hidden_n, _) = self.lstm2(x)
         x, (hidden_n, _) = self.lstm3(x)
