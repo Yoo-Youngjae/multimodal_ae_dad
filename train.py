@@ -16,8 +16,9 @@ import os
 # For tensorboard
 now = datetime.now()
 date_time = now.strftime("%Y-%m-%d-%H:%M:%S")
-logdir = 'log/' + date_time
-os.mkdir(logdir)
+# logdir = 'log/' + date_time
+# os.mkdir(logdir)
+logdir = 'log'
 writer = SummaryWriter(log_dir=logdir)
 
 def get_config():
@@ -118,8 +119,11 @@ def evaluate(model, args, test_loader, valid_loader, result_save=False):
     multisensory_fusion = Multisensory_Fusion(args)
     labels = []
     val_losses = []
+    normal_losses = []
+    abnormal_losses = []
     eval_valid_log_idx = 0
     eval_test_log_idx = 0
+
     with torch.no_grad():
         for r, d, m, t, label in valid_loader:
             try:
@@ -143,13 +147,18 @@ def evaluate(model, args, test_loader, valid_loader, result_save=False):
                 if label[0].item() == 0:
                     writer.add_scalar("Test/Normal_Loss", loss, eval_valid_log_idx)
                     eval_valid_log_idx += 1
+                    normal_losses.append(loss.item())
                 else:
                     writer.add_scalar("Test/Abnormal_Loss", loss, eval_test_log_idx)
                     eval_test_log_idx += 1
+                    abnormal_losses.append(loss.item())
 
             except Exception as e:
                 pass
-        print(f'test loss {np.mean(losses)}')
+        print(f'Total test loss {np.mean(losses)}')
+        print(f'Mean normal_losses {np.mean(normal_losses)}')
+        print(f'Mean abnormal_losses {np.mean(abnormal_losses)}')
+
         base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(losses, val_losses, labels)
         print('base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls', base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls)
         if result_save:

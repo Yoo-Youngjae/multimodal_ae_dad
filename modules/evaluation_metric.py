@@ -7,6 +7,17 @@ import matplotlib.pyplot as plt
 def get_auc_roc(score, test_label, nap=False):
     try:
         fprs, tprs, threshold = metrics.roc_curve(test_label, score)
+        draw = True
+        if draw:
+            plt.title('Receiver Operating Characteristic')
+            plt.plot(fprs, tprs, 'b', label='AUC = %0.2f' % metrics.auc(fprs, tprs))
+            plt.legend(loc='lower right')
+            plt.plot([0, 1], [0, 1], 'r--')
+            plt.xlim([0, 1])
+            plt.ylim([0, 1])
+            plt.ylabel('True Positive Rate')
+            plt.xlabel('False Positive Rate')
+            plt.show()
         return metrics.auc(fprs, tprs)
     except:
         return .0
@@ -35,6 +46,7 @@ def get_auc_prc(score, test_label):
 def get_f1_score(valid_score, test_score, test_label, f1_quantiles=[.90]):
 
     threshold = np.quantile(valid_score, f1_quantiles)
+    print('threshold', threshold)
     predictions = test_score > threshold
     p = (predictions & test_label).sum() / float(predictions.sum())
     r = (predictions & test_label).sum() / float(sum(test_label)) #test_label.sum()
