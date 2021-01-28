@@ -9,9 +9,16 @@ from modules.Multisensory_Fusion import Multisensory_Fusion
 from modules.evaluation_metric import get_recon_loss
 import pandas as pd
 import numpy as np
-import seaborn as sns
+from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
+import os
 
-
+# For tensorboard
+now = datetime.now()
+date_time = now.strftime("%Y-%m-%d-%H:%M:%S")
+logdir = 'log/' + date_time
+os.mkdir(logdir)
+writer = SummaryWriter(log_dir=logdir)
 
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
@@ -24,11 +31,11 @@ def get_config():
     parser.add_argument('--clip', type=float, default=10, help='gradient clipping')
     parser.add_argument('--device_id', type=int, default=0, help='device id(default : 0)')
 
-    parser.add_argument('--shuffle_data', action='store_true', default=True)
+    parser.add_argument('--shuffle_batch', action='store_true', default=True)
     parser.add_argument('--workers', type=int, default=4, help='number of workers')
     parser.add_argument('--seq_len', type=int, default=3, help='sequence length')
     parser.add_argument('--n_features', type=int, default=64, help='number of features')
-    parser.add_argument('--embedding_dim', type=int, default=16, help='embedding dimension')
+    parser.add_argument('--embedding_dim', type=int, default=32, help='embedding dimension')
     parser.add_argument('--n_layer', type=int, default=5, help='number of layer(encoder)')
 
 
@@ -41,7 +48,7 @@ def get_config():
     parser.add_argument('--dataset_file_path', type=str, default="dataset/data_sum")
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")
 
-    parser.add_argument('--save_model_name', type=str, default="save/saveModel/result.pt")
+    parser.add_argument('--save_model_name', type=str, default="save/saveModel/forcetorque_64_32.pt")
     parser.add_argument('--save_data_name', type=str, default="dataset/data_sum.pt")
     parser.add_argument('--saved_result_csv_name', type=str, default="save/result_csv/result.csv")
 
@@ -55,6 +62,8 @@ def train(model, args, train_loader, valid_loader):
     criterion = nn.MSELoss().to(args.device_id)
 
     multisensory_fusion = Multisensory_Fusion(args)
+    train_log_idx = 0
+    valid_log_idx = 0
     for epoch in range(args.epochs):
         model.train()
         train_losses = []
@@ -65,6 +74,8 @@ def train(model, args, train_loader, valid_loader):
                 train_input_representation = train_input_representation.to(args.device_id)
                 train_output = model(train_input_representation)
                 loss = criterion(train_output, train_input_representation)
+                writer.add_scalar("Train/train_loss", loss, train_log_idx)
+                train_log_idx += 1
                 loss.backward()
 
                 # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
@@ -73,7 +84,8 @@ def train(model, args, train_loader, valid_loader):
                 train_losses.append(loss.item())
             except Exception as e:
                 # print(e)
-                pass
+                continue
+
 
 
         val_losses = []
@@ -85,6 +97,8 @@ def train(model, args, train_loader, valid_loader):
                     valid_input_representation = valid_input_representation.to(args.device_id)
                     valid_output = model(valid_input_representation)
                     loss = criterion(valid_output, valid_input_representation)
+                    writer.add_scalar("Train/valid_loss", loss, valid_log_idx)
+                    valid_log_idx += 1
                     val_losses.append(loss.item())
                 except Exception as e:
                     pass
@@ -104,6 +118,8 @@ def evaluate(model, args, test_loader, valid_loader, result_save=False):
     multisensory_fusion = Multisensory_Fusion(args)
     labels = []
     val_losses = []
+    eval_valid_log_idx = 0
+    eval_test_log_idx = 0
     with torch.no_grad():
         for r, d, m, t, label in valid_loader:
             try:
@@ -124,6 +140,13 @@ def evaluate(model, args, test_loader, valid_loader, result_save=False):
                 predictions.append(test_output.cpu().numpy().flatten())
                 losses.append(loss.item())
                 labels.append(label)
+                if label[0].item() == 0:
+                    writer.add_scalar("Test/Normal_Loss", loss, eval_valid_log_idx)
+                    eval_valid_log_idx += 1
+                else:
+                    writer.add_scalar("Test/Abnormal_Loss", loss, eval_test_log_idx)
+                    eval_test_log_idx += 1
+
             except Exception as e:
                 pass
         print(f'test loss {np.mean(losses)}')
@@ -152,12 +175,13 @@ if __name__ == '__main__':
 
     train(model, args, train_loader, valid_loader)
     evaluate(model, args, test_loader, valid_loader)
+    writer.close()
 
     # save eval
     torch.save(model.state_dict(), args.save_model_name)
-    df_eval = pd.DataFrame([{'base_auroc': 0, 'sap_auroc': 0, 'base_f1score':0, 'sap_f1score':0}])
-    for i in range(1):
-        df, losses = evaluate(model, args, test_loader, valid_loader, result_save=True)
-        df_eval = df_eval.append(df, ignore_index=True)
-
-    df_eval[1:].to_csv(args.saved_result_csv_name)
+    # df_eval = pd.DataFrame([{'base_auroc': 0, 'sap_auroc': 0, 'base_f1score':0, 'sap_f1score':0}])
+    # for i in range(1):
+    #     df, losses = evaluate(model, args, test_loader, valid_loader, result_save=True)
+    #     df_eval = df_eval.append(df, ignore_index=True)
+    #
+    # df_eval[1:].to_csv(args.saved_result_csv_name)

@@ -61,9 +61,9 @@ def get_loaders(args):
     # 2. split it in to train, valid, test.
     trainset, validset, testset = split_train_test(full_dataframe, args)
 
-    return DataLoader(trainset, batch_size=args.batch_size                                                                , num_workers=args.workers), \
-           DataLoader(validset, batch_size=args.batch_size, num_workers=args.workers), \
-           DataLoader(testset, batch_size=args.batch_size, num_workers=args.workers)
+    return DataLoader(trainset, batch_size=args.batch_size, num_workers=args.workers, shuffle=args.shuffle_batch), \
+           DataLoader(validset, batch_size=args.batch_size, num_workers=args.workers,shuffle=args.shuffle_batch), \
+           DataLoader(testset, batch_size=1, num_workers=args.workers)
 
 def split_train_test(full_dataframe, args):
     # set to 0.3 seconds unit
@@ -90,8 +90,6 @@ def split_train_test(full_dataframe, args):
 
     train_valid_test_ratio = [0.6, 0.2, 0.2]
     train_valid_size = [int(train_valid_test_ratio[0] * data_len), int(train_valid_test_ratio[1] * data_len)]
-    if args.shuffle_data:
-        random.shuffle(normal_idx)
 
     trainset_idxs = normal_idx[:train_valid_size[0]]
     validset_idxs = normal_idx[train_valid_size[0]:train_valid_size[0] + train_valid_size[1]]
