@@ -7,7 +7,24 @@ import os
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
 from torchvision import models, transforms
-import random
+
+
+
+def get_n_features(sensor):
+    if sensor == 'All':
+        val = 1728
+        return val
+    elif sensor == 'hand_camera':
+        return 1024
+    elif sensor == 'force_torque':
+        return 64
+    elif sensor == 'head_depth':
+        return 512
+    elif sensor == 'LiDAR':
+        return 2048
+    elif sensor == 'mic':
+        return 64
+
 
 class HsrDataset(Dataset):
     def __init__(self, args, idxs, dataframe, test=False):
@@ -21,12 +38,15 @@ class HsrDataset(Dataset):
         self.unimodal = True
         self.All = False
         self.force_torque = False
+        self.mic = False
         if args.sensor == 'All':
             self.All = True
             self.force_torque = True
             self.unimodal = False
         elif args.sensor == 'force_torque':
             self.force_torque = True
+        elif args.sensor == 'mic':
+            self.mic = True
 
 
     def __len__(self):
@@ -38,18 +58,30 @@ class HsrDataset(Dataset):
         d = torch.tensor([])
         m = torch.tensor([])
         t = torch.tensor([])
+        cur_rows = self.dataframe.loc[idxs[0]:idxs[2]]
         # for i in idxs:
-        label = self.dataframe.loc[idxs[0]:idxs[2]]['label'].tolist()
+        label = cur_rows['label'].tolist()
         if 1 in label:
             label = 1
         else:
             label = 0
         if self.force_torque:
-            hand_weight_series = self.dataframe.loc[idxs[0]:idxs[2]]['cur_hand_weight']
+            hand_weight_series = cur_rows['cur_hand_weight']
             t = hand_weight_series.to_numpy()
             # t = norm_vec_np(t)
             t = torch.from_numpy(t.astype(np.float32))
             # t = t.view(-1, 1)
+        elif self.mic:
+            mic_df = self.dataframe.loc[idxs[0]:idxs[2]]['mfcc00']
+            for i in range(1, 13):
+                if i < 10:
+                    mic_df = pd.concat([mic_df, cur_rows['mfcc0' + str(i)]], axis=1)
+                else:
+                    mic_df = pd.concat([mic_df, cur_rows['mfcc' + str(i)]], axis=1)
+            m = mic_df.to_numpy()
+            # m = norm_vec_np(m)
+            m = torch.from_numpy(m.astype(np.float32))
+
 
         return r, d, m, t, label
 
@@ -108,12 +140,15 @@ def split_train_test(full_dataframe, args):
 def get_Dataframe(args):
     All = False
     force_torque = False
+    mic = False
 
     if args.sensor == 'All':
         All = True
         force_torque = True
     elif args.sensor == 'force_torque':
         force_torque = True
+    elif args.sensor == 'mic':
+        mic = True
 
     # 0. save file already existed
     if os.path.exists(args.save_data_name):
@@ -141,6 +176,15 @@ def get_Dataframe(args):
         hand_weight_series = df_datasum['cur_hand_weight']
         label_series = df_datasum['label']
         return pd.concat([hand_weight_series, label_series], axis=1)
+    elif mic:
+        mic_df = df_datasum['mfcc00']
+        for i in range(1, 13):
+            if i < 10:
+                mic_df = pd.concat([mic_df, df_datasum['mfcc0' + str(i)]], axis=1)
+            else:
+                mic_df = pd.concat([mic_df, df_datasum['mfcc' + str(i)]], axis=1)
+        label_series = df_datasum['label']
+        return pd.concat([mic_df, label_series], axis=1)
 
     ##########################################################################
 

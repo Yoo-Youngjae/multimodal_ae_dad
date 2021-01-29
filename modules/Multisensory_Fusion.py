@@ -16,6 +16,9 @@ class Multisensory_Fusion(): # nn.Module
         elif args.sensor == 'force_torque':
             self.force_torque = True
 
+        self.conv1m = nn.Conv1d(1, 8, kernel_size=6).to(args.device_id)
+
+
     def fwd(self, r,d,m,t):
         # batch normalization
         # t = self.norm_vec(t)
@@ -25,16 +28,30 @@ class Multisensory_Fusion(): # nn.Module
         t = t.to(self.args.device_id)
         out = torch.Tensor().to(self.args.device_id)
         for i in range(self.batch_size):
-            if t is not None:
+            if t.shape[1] != 0:     # t is not None
+                # t[i].shape == 3
                 tt = t[i].unsqueeze(1).unsqueeze(1)
+                # tt.shape == 3, 1, 1
                 tt = tt.repeat(1, 8, 8)
+                # tt.shape == 3, 8, 8
                 tt = tt.unsqueeze(0)
+                # tt.shape == 1, 3, 8, 8
                 if self.unimodal:
                     result = tt
+            if m.shape[1] != 0:     # m is not None
+                # m[i].shape == 3, 13
+                mm = m[i].unsqueeze(1)
+                # mm.shape == 3, 1, 13
+                mm = self.conv1m(mm)
+                # mm.shape == 3, 8, 8
+                mm = mm.unsqueeze(0)
+                if self.unimodal:
+                    result = mm
             out = torch.cat((out, result), 0)
 
-        out = out.view(-1, 3, 64)
+        out = out.view(-1, self.args.seq_len, self.args.n_features)
         return out
+
 
 
     def norm_vec(self,v, range_in=None, range_out=None):

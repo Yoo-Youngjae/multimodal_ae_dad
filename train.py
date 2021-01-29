@@ -4,7 +4,7 @@ import torch.nn as nn
 from matplotlib import pyplot as plt
 
 from torch import optim
-from modules.data_loader import get_loaders
+from modules.data_loader import get_loaders, get_n_features
 from modules.Multisensory_Fusion import Multisensory_Fusion
 from modules.evaluation_metric import get_recon_loss
 import pandas as pd
@@ -12,19 +12,19 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import os
+from tqdm import tqdm
 
 # For tensorboard
 now = datetime.now()
 date_time = now.strftime("%Y-%m-%d-%H:%M:%S")
-# logdir = 'log/' + date_time
-# os.mkdir(logdir)
-logdir = 'log'
+logdir = 'log/' + date_time
+os.mkdir(logdir)
 writer = SummaryWriter(log_dir=logdir)
 
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
-    parser.add_argument('--epochs', type=int, default=5, help='upper epoch limit') # 30
+    parser.add_argument('--epochs', type=int, default=10, help='upper epoch limit') # 30
     parser.add_argument('--batch_size', type=int, default=64, help='batch size')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
@@ -43,13 +43,13 @@ def get_config():
     parser.add_argument('--object_select_mode', action='store_true', default=False)
     parser.add_argument('--object_type', type=str, default="bottle")
 
-    parser.add_argument('--sensor', type=str, default="force_torque") # All
+    parser.add_argument('--sensor', type=str, default="mic") # All, force_torque,  mic
 
     parser.add_argument('--origin_datafile_path', type=str, default="/data_ssd/hsr_dropobject/data/")
     parser.add_argument('--dataset_file_path', type=str, default="dataset/data_sum")
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")
 
-    parser.add_argument('--save_model_name', type=str, default="save/saveModel/forcetorque_64_32.pt")
+    parser.add_argument('--save_model_name', type=str, default="save/saveModel/mic_64_32.pt")
     parser.add_argument('--save_data_name', type=str, default="dataset/data_sum.pt")
     parser.add_argument('--saved_result_csv_name', type=str, default="save/result_csv/result.csv")
 
@@ -68,7 +68,7 @@ def train(model, args, train_loader, valid_loader):
     for epoch in range(args.epochs):
         model.train()
         train_losses = []
-        for r, d, m, t, label in train_loader:
+        for r, d, m, t, label in tqdm(train_loader):
             try:
                 optimizer.zero_grad()
                 train_input_representation = multisensory_fusion.fwd(r, d, m, t)
@@ -92,7 +92,7 @@ def train(model, args, train_loader, valid_loader):
         val_losses = []
         model.eval()
         with torch.no_grad():
-            for r, d, m, t, label in valid_loader:
+            for r, d, m, t, label in tqdm(valid_loader):
                 try:
                     valid_input_representation = multisensory_fusion.fwd(r, d, m, t)
                     valid_input_representation = valid_input_representation.to(args.device_id)
@@ -112,6 +112,7 @@ def train(model, args, train_loader, valid_loader):
 
 
 def evaluate(model, args, test_loader, valid_loader, result_save=False):
+    model = model.to(args.device_id)
     args.batch_size = 1
     model.eval()
     predictions, losses = [], []
@@ -171,17 +172,17 @@ if __name__ == '__main__':
     from model import model
     args = get_config()
     train_loader, valid_loader, test_loader = get_loaders(args)
+
     seq_len = args.seq_len
+    args.n_features = get_n_features(args.sensor)
     n_features = args.n_features
     embedding_dim = args.embedding_dim
+
     model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
     model = model.to(args.device_id)
     print(model)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    criterion = nn.MSELoss()
 
     # train
-
     train(model, args, train_loader, valid_loader)
     evaluate(model, args, test_loader, valid_loader)
     writer.close()
