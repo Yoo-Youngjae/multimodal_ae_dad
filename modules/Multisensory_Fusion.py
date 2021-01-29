@@ -47,7 +47,20 @@ class Multisensory_Fusion(): # nn.Module
                 mm = mm.unsqueeze(0)
                 if self.unimodal:
                     result = mm
+            if r.shape[1] != 0:
+                # r[i].shape == 3,1000
+                rr = r[i].unsqueeze(0)
+                # rr.shape == 1, 3, 1000
+                if self.unimodal:
+                    result = rr
+            if d.shape[1] != 0:
+                # d[i].shape == 3,1000
+                dd = d[i].unsqueeze(0)
+                # dd.shape == 1, 3, 1000
+                if self.unimodal:
+                    result = dd
             out = torch.cat((out, result), 0)
+
 
         out = out.view(-1, self.args.seq_len, self.args.n_features)
         return out

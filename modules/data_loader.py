@@ -10,20 +10,21 @@ from torchvision import models, transforms
 
 
 
+
 def get_n_features(sensor):
     if sensor == 'All':
         val = 1728
         return val
     elif sensor == 'hand_camera':
-        return 1024
+        return 1000     # 1024
     elif sensor == 'force_torque':
         return 64
     elif sensor == 'head_depth':
-        return 512
+        return 1000     # 512
     elif sensor == 'LiDAR':
         return 2048
     elif sensor == 'mic':
-        return 64
+        return 64       # 128
 
 
 class HsrDataset(Dataset):
@@ -31,14 +32,19 @@ class HsrDataset(Dataset):
         self.args = args
         self.idxs = idxs
         self.dataframe = dataframe
+
         if test:
             self.batch_size = 1
         else:
             self.batch_size = args.batch_size
+
         self.unimodal = True
         self.All = False
         self.force_torque = False
         self.mic = False
+        self.hand_camera = False
+        self.head_depth = False
+
         if args.sensor == 'All':
             self.All = True
             self.force_torque = True
@@ -47,6 +53,14 @@ class HsrDataset(Dataset):
             self.force_torque = True
         elif args.sensor == 'mic':
             self.mic = True
+        elif args.sensor == 'hand_camera' or args.sensor == 'head_depth':
+            if args.sensor == 'hand_camera':
+                self.hand_camera = True
+            elif args.sensor == 'head_depth':
+                self.head_depth = True
+            self.compose = transforms.Compose([transforms.Resize((49, 49))]) #(224, 224)
+            resnet50 = models.resnet50(pretrained=True)  # in (18, 34, 50, 101, 152)
+            self.resnet50 = resnet50.to(self.args.device_id)
 
 
     def __len__(self):
@@ -59,12 +73,14 @@ class HsrDataset(Dataset):
         m = torch.tensor([])
         t = torch.tensor([])
         cur_rows = self.dataframe.loc[idxs[0]:idxs[2]]
-        # for i in idxs:
         label = cur_rows['label'].tolist()
+
+        # [ 0, 0, 1], [0, 1, 1], [1, 1, 1] is abnormal
         if 1 in label:
             label = 1
         else:
             label = 0
+
         if self.force_torque:
             hand_weight_series = cur_rows['cur_hand_weight']
             t = hand_weight_series.to_numpy()
@@ -72,7 +88,7 @@ class HsrDataset(Dataset):
             t = torch.from_numpy(t.astype(np.float32))
             # t = t.view(-1, 1)
         elif self.mic:
-            mic_df = self.dataframe.loc[idxs[0]:idxs[2]]['mfcc00']
+            mic_df = cur_rows['mfcc00']
             for i in range(1, 13):
                 if i < 10:
                     mic_df = pd.concat([mic_df, cur_rows['mfcc0' + str(i)]], axis=1)
@@ -81,7 +97,41 @@ class HsrDataset(Dataset):
             m = mic_df.to_numpy()
             # m = norm_vec_np(m)
             m = torch.from_numpy(m.astype(np.float32))
+        elif self.hand_camera or self.head_depth:
+            data_dirs = cur_rows['data_dir']
+            if self.hand_camera:
+                img_dirs = cur_rows['cur_hand_id']
+                sub_path = '/data/img/hand/'
+            elif self.head_depth:
+                img_dirs = cur_rows['cur_depth_id']
+                sub_path = '/data/img/d/'
 
+            firstRow = True
+
+            ## todo : Is this needed interpolation ?
+            for img_dir, data_dir in zip(img_dirs, data_dirs):
+                img_dir = self.args.origin_datafile_path + data_dir + sub_path + str(int(img_dir)) + '.png'
+                im = Image.open(img_dir)
+                im = self.compose(im)
+                im_arr = np.array(im)
+
+                if firstRow:
+                    firstRow = False
+                    base_im_arr = [im_arr]
+                else:
+                    base_im_arr = np.concatenate((base_im_arr, [im_arr]), axis=0)
+
+
+            if self.head_depth:
+                base_im_arr = np.repeat(base_im_arr[..., np.newaxis], 3, -1)
+            base_im_arr = base_im_arr.transpose((0, 3, 1, 2))
+            im_arr = torch.FloatTensor(base_im_arr)
+            im_arr = im_arr.to(self.args.device_id)
+            with torch.no_grad():
+                if self.hand_camera:
+                    r = self.resnet50(im_arr)
+                elif self.head_depth:
+                    d = self.resnet50(im_arr)
 
         return r, d, m, t, label
 
@@ -141,6 +191,8 @@ def get_Dataframe(args):
     All = False
     force_torque = False
     mic = False
+    hand_camera = False
+    head_depth = False
 
     if args.sensor == 'All':
         All = True
@@ -149,6 +201,10 @@ def get_Dataframe(args):
         force_torque = True
     elif args.sensor == 'mic':
         mic = True
+    elif args.sensor == 'hand_camera':
+        hand_camera = True
+    elif args.sensor == 'head_depth':
+        head_depth = True
 
     # 0. save file already existed
     if os.path.exists(args.save_data_name):
@@ -185,6 +241,12 @@ def get_Dataframe(args):
                 mic_df = pd.concat([mic_df, df_datasum['mfcc' + str(i)]], axis=1)
         label_series = df_datasum['label']
         return pd.concat([mic_df, label_series], axis=1)
+    elif hand_camera or head_depth:
+        hand_series = df_datasum['cur_hand_id']
+        depth_series = df_datasum['cur_depth_id']
+        data_dir = df_datasum['data_dir']
+        label_series = df_datasum['label']
+        return pd.concat([hand_series, depth_series, data_dir, label_series], axis=1)
 
     ##########################################################################
 
@@ -202,97 +264,6 @@ def norm_vec_np(v, range_in=None, range_out=None):
 
 
 def preprocess(self):
-    hand_weight_series = df_datasum['cur_hand_weight']
-    label_series = df_datasum['label']
-    data_dir = df_datasum['data_dir']
-
-
-    data = df_datasum.drop(columns=['data_dir'])
-    data = data.drop(columns=['now_timegap'])
-    data = data.drop(columns=['label'])
-    data = data.drop(columns=['id'])
-    # 2. LiDAR column already deleted in csv files
-    # for i in range(963):
-    #     if i < 10:
-    #         data = data.drop(columns='LiDAR00' + str(i))
-    #     elif i < 100:
-    #         data = data.drop(columns='LiDAR0' + str(i))
-    #     else:
-    #         data = data.drop(columns='LiDAR' + str(i))
-    data = data.loc[:, ~data.columns.str.match('Unnamed')]
-
-    ## 3. sensor wised preprocess
-    if All:
-        # 1) sound data
-        mic_df = None
-        firstRow = True
-        for i in range(13):
-            if i == 0:
-                mic_df = data['mfcc00']
-            elif i < 10:
-                mic_df = pd.concat([mic_df, data['mfcc0' + str(i)]], axis=1)
-            else:
-                mic_df = pd.concat([mic_df, data['mfcc' + str(i)]], axis=1)
-
-        # 2) rgb, depth
-        base_depth_arr = np.array([])
-        base_hand_arr = np.array([])
-        compose = transforms.Compose([transforms.Resize((112, 112))]) #(224, 224)
-        for idx, data_dir_str in tqdm(zip(data.index, data_dir)):
-            if idx == 100:
-                break
-            nowdf = data.loc[idx]
-
-            hand_dir = args.origin_datafile_path + data_dir_str + '/data/img/hand/' + str(int(nowdf['cur_hand_id'])) + '.png'
-            hand_im = Image.open(hand_dir)
-            hand_im = compose(hand_im)
-            hand_arr = np.array(hand_im)
-
-
-            depth_dir = args.origin_datafile_path + data_dir_str + '/data/img/d/' + str(int(nowdf['cur_depth_id'])) + '.png'
-            depth_im = Image.open(depth_dir)
-            depth_im = compose(depth_im)
-            depth_arr = np.array(depth_im)
-
-
-            if firstRow:
-                firstRow = False
-                base_hand_arr = [hand_arr]
-                base_depth_arr = [depth_arr]
-            else:
-                base_hand_arr = np.concatenate((base_hand_arr, [hand_arr]), axis=0)
-                base_depth_arr = np.concatenate((base_depth_arr, [depth_arr]), axis=0)
-
-        # transpose
-        base_hand_arr = base_hand_arr.transpose((0, 3, 1, 2))
-        base_depth_arr = np.repeat(base_depth_arr[..., np.newaxis], 3, -1)
-        base_depth_arr = base_depth_arr.transpose((0, 3, 1, 2))
-
-        torch.save(base_hand_arr, 'dataset/base_hand_arr7.pt')
-        torch.save(base_depth_arr, 'dataset/base_depth_arr7.pt')
-
-        base_hand_arr = torch.FloatTensor(base_hand_arr)
-        base_hand_arr = base_hand_arr.to(args.device_id)
-        base_depth_arr = torch.FloatTensor(base_depth_arr)
-        base_depth_arr = base_depth_arr.to(1)
-
-        resnet50 = models.resnet50(pretrained=True)  # in (18, 34, 50, 101, 152)
-        resnet50_hand = resnet50.to(args.device_id)
-
-        base_hand_arr = resnet50_hand(base_hand_arr)
-        print(base_hand_arr.shape)
-        resnet50_depth = resnet50.to(1)
-        base_depth_arr = resnet50_depth(base_depth_arr)
-        print(base_depth_arr.shape)
-
-
-
-    # 4. multi modal fusion
-        # 1) force_torque
-    r = None
-    d = None
-    m = None
-    t = None
 
     if force_torque:
         t = norm_vec_np(hand_weight_series.to_numpy())

@@ -14,6 +14,7 @@ from datetime import datetime
 import os
 from tqdm import tqdm
 
+
 # For tensorboard
 now = datetime.now()
 date_time = now.strftime("%Y-%m-%d-%H:%M:%S")
@@ -43,13 +44,13 @@ def get_config():
     parser.add_argument('--object_select_mode', action='store_true', default=False)
     parser.add_argument('--object_type', type=str, default="bottle")
 
-    parser.add_argument('--sensor', type=str, default="mic") # All, force_torque,  mic
+    parser.add_argument('--sensor', type=str, default="head_depth") # All, hand_camera, head_depth, force_torque,  mic
 
     parser.add_argument('--origin_datafile_path', type=str, default="/data_ssd/hsr_dropobject/data/")
     parser.add_argument('--dataset_file_path', type=str, default="dataset/data_sum")
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")
 
-    parser.add_argument('--save_model_name', type=str, default="save/saveModel/mic_64_32.pt")
+    parser.add_argument('--save_model_name', type=str, default="save/saveModel/hand_camera_64_32.pt")
     parser.add_argument('--save_data_name', type=str, default="dataset/data_sum.pt")
     parser.add_argument('--saved_result_csv_name', type=str, default="save/result_csv/result.csv")
 
@@ -84,10 +85,8 @@ def train(model, args, train_loader, valid_loader):
                 optimizer.step()
                 train_losses.append(loss.item())
             except Exception as e:
-                # print(e)
+                print(e)
                 continue
-
-
 
         val_losses = []
         model.eval()
@@ -169,7 +168,10 @@ def evaluate(model, args, test_loader, valid_loader, result_save=False):
 
 
 if __name__ == '__main__':
+    # Below line is solution for [RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method]
+    torch.multiprocessing.set_start_method('spawn')
     from model import model
+
     args = get_config()
     train_loader, valid_loader, test_loader = get_loaders(args)
 
