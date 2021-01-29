@@ -13,16 +13,14 @@ from torchvision import models, transforms
 
 def get_n_features(sensor):
     if sensor == 'All':
-        val = 1728
+        val = 1000 + 1000 + 64 + 64
         return val
     elif sensor == 'hand_camera':
         return 1000     # 1024
-    elif sensor == 'force_torque':
-        return 64
     elif sensor == 'head_depth':
         return 1000     # 512
-    elif sensor == 'LiDAR':
-        return 2048
+    elif sensor == 'force_torque':
+        return 64
     elif sensor == 'mic':
         return 64       # 128
 
@@ -44,11 +42,14 @@ class HsrDataset(Dataset):
         self.mic = False
         self.hand_camera = False
         self.head_depth = False
+        self.compose = transforms.Compose([transforms.Resize((49, 49))])  # (224, 224)
 
         if args.sensor == 'All':
             self.All = True
             self.force_torque = True
             self.unimodal = False
+            resnet50 = models.resnet50(pretrained=True)  # in (18, 34, 50, 101, 152)
+            self.resnet50 = resnet50.to(self.args.device_id)
         elif args.sensor == 'force_torque':
             self.force_torque = True
         elif args.sensor == 'mic':
@@ -58,9 +59,9 @@ class HsrDataset(Dataset):
                 self.hand_camera = True
             elif args.sensor == 'head_depth':
                 self.head_depth = True
-            self.compose = transforms.Compose([transforms.Resize((49, 49))]) #(224, 224)
             resnet50 = models.resnet50(pretrained=True)  # in (18, 34, 50, 101, 152)
             self.resnet50 = resnet50.to(self.args.device_id)
+
 
 
     def __len__(self):
@@ -87,7 +88,7 @@ class HsrDataset(Dataset):
             # t = norm_vec_np(t)
             t = torch.from_numpy(t.astype(np.float32))
             # t = t.view(-1, 1)
-        elif self.mic:
+        if self.mic:
             mic_df = cur_rows['mfcc00']
             for i in range(1, 13):
                 if i < 10:
@@ -97,14 +98,36 @@ class HsrDataset(Dataset):
             m = mic_df.to_numpy()
             # m = norm_vec_np(m)
             m = torch.from_numpy(m.astype(np.float32))
-        elif self.hand_camera or self.head_depth:
+        if self.hand_camera:
             data_dirs = cur_rows['data_dir']
-            if self.hand_camera:
-                img_dirs = cur_rows['cur_hand_id']
-                sub_path = '/data/img/hand/'
-            elif self.head_depth:
-                img_dirs = cur_rows['cur_depth_id']
-                sub_path = '/data/img/d/'
+
+            img_dirs = cur_rows['cur_hand_id']
+            sub_path = '/data/img/hand/'
+            firstRow = True
+
+            ## todo : Is this needed interpolation ?
+            for img_dir, data_dir in zip(img_dirs, data_dirs):
+                img_dir = self.args.origin_datafile_path + data_dir + sub_path + str(int(img_dir)) + '.png'
+                im = Image.open(img_dir)
+                im = self.compose(im)
+                im_arr = np.array(im)
+
+                if firstRow:
+                    firstRow = False
+                    base_im_arr = [im_arr]
+                else:
+                    base_im_arr = np.concatenate((base_im_arr, [im_arr]), axis=0)
+
+            base_im_arr = base_im_arr.transpose((0, 3, 1, 2))
+            im_arr = torch.FloatTensor(base_im_arr)
+            im_arr = im_arr.to(self.args.device_id)
+            with torch.no_grad():
+                r = self.resnet50(im_arr)
+
+        if self.head_depth:
+            data_dirs = cur_rows['data_dir']
+            img_dirs = cur_rows['cur_depth_id']
+            sub_path = '/data/img/d/'
 
             firstRow = True
 
@@ -121,17 +144,12 @@ class HsrDataset(Dataset):
                 else:
                     base_im_arr = np.concatenate((base_im_arr, [im_arr]), axis=0)
 
-
-            if self.head_depth:
-                base_im_arr = np.repeat(base_im_arr[..., np.newaxis], 3, -1)
+            base_im_arr = np.repeat(base_im_arr[..., np.newaxis], 3, -1)
             base_im_arr = base_im_arr.transpose((0, 3, 1, 2))
             im_arr = torch.FloatTensor(base_im_arr)
             im_arr = im_arr.to(self.args.device_id)
             with torch.no_grad():
-                if self.hand_camera:
-                    r = self.resnet50(im_arr)
-                elif self.head_depth:
-                    d = self.resnet50(im_arr)
+                d = self.resnet50(im_arr)
 
         return r, d, m, t, label
 
@@ -196,7 +214,6 @@ def get_Dataframe(args):
 
     if args.sensor == 'All':
         All = True
-        force_torque = True
     elif args.sensor == 'force_torque':
         force_torque = True
     elif args.sensor == 'mic':
@@ -265,11 +282,7 @@ def norm_vec_np(v, range_in=None, range_out=None):
 
 def preprocess(self):
 
-    if force_torque:
-        t = norm_vec_np(hand_weight_series.to_numpy())
-        t = torch.from_numpy(t.astype(np.float32))
-        t = t.view(-1, 1)
-        print('t.shape', t.shape)
+
     if All:
         resnet50 = models.resnet50(pretrained=True) # in (18, 34, 50, 101, 152)
         # 2) hand_camera

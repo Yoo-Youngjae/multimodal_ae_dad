@@ -7,17 +7,10 @@ class Multisensory_Fusion(): # nn.Module
         self.args = args
         self.batch_size = args.batch_size
         self.unimodal = True
-        self.All = False
-        self.force_torque = False
         if args.sensor == 'All':
-            self.All = True
-            self.force_torque = True
             self.unimodal = False
-        elif args.sensor == 'force_torque':
-            self.force_torque = True
 
         self.conv1m = nn.Conv1d(1, 8, kernel_size=6).to(args.device_id)
-
 
     def fwd(self, r,d,m,t):
         # batch normalization
