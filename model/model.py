@@ -16,8 +16,8 @@ class LSTM_AE(nn.Module):
         self.decoder = Decoder(seq_len, args, embedding_dim, n_features).to(args.device_id)
 
     def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
+        x, encoder_state = self.encoder(x)
+        x = self.decoder(x, encoder_state)
         return x
 
 
@@ -66,9 +66,12 @@ class Encoder(nn.Module):
         x, (_, _) = self.lstm2(x)
         x, (_, _) = self.lstm3(x)
         x, (_, _) = self.lstm4(x)
-        x, (hidden_n, _) = self.lstm5(x)
-
-        return x # x.reshape((self.args.batch_size, self.embedding_dim)) # hidden_n
+        x, encoder_state = self.lstm5(x)
+        # x.shape : torch.Size([64, 3, 32])
+        # hidden_n.shape : torch.Size([1, 3, 32])
+        # self.n_features : 64
+        # self.embedding_dim : 32
+        return x, encoder_state  # hidden_n
 
 class Decoder(nn.Module):
 
@@ -113,11 +116,12 @@ class Decoder(nn.Module):
 
 
 
-    def forward(self, x):
-        # x = x.repeat(self.seq_len, self.n_features)
-        # x = x.repeat(self.seq_len, 1)
-        # x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
-        x, (hidden_n, _) = self.lstm1(x)
+    def forward(self, x, encoder_state):
+
+        # x = x.repeat(self.args.batch_size, 1,  1)
+        x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
+
+        x, (hidden_n, _) = self.lstm1(x, encoder_state)
         x, (hidden_n, _) = self.lstm2(x)
         x, (hidden_n, _) = self.lstm3(x)
         x, (hidden_n, _) = self.lstm4(x)

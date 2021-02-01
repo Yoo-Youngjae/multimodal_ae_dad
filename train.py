@@ -15,18 +15,12 @@ import os
 from tqdm import tqdm
 
 
-# For tensorboard
-now = datetime.now()
-date_time = now.strftime("%Y-%m-%d-%H:%M:%S")
-logdir = 'log/' + date_time
-os.mkdir(logdir)
-writer = SummaryWriter(log_dir=logdir)
 
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
     parser.add_argument('--epochs', type=int, default=10, help='upper epoch limit') # 30
-    parser.add_argument('--batch_size', type=int, default=64, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=64, help='batch size') # 64
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout applied to layers (0 = no dropout)')
@@ -37,29 +31,29 @@ def get_config():
     parser.add_argument('--workers', type=int, default=4, help='number of workers')
     parser.add_argument('--seq_len', type=int, default=3, help='sequence length')
     parser.add_argument('--n_features', type=int, default=64, help='number of features')
-    parser.add_argument('--embedding_dim', type=int, default=32, help='embedding dimension')
+    parser.add_argument('--embedding_dim', type=int, default=100, help='embedding dimension')  #32
     parser.add_argument('--n_layer', type=int, default=5, help='number of layer(encoder)')
 
 
     parser.add_argument('--object_select_mode', action='store_true', default=False)
     parser.add_argument('--object_type', type=str, default="bottle")
 
-    parser.add_argument('--sensor', type=str, default="head_depth") # All, hand_camera, head_depth, force_torque,  mic
-
     parser.add_argument('--origin_datafile_path', type=str, default="/data_ssd/hsr_dropobject/data/")
     parser.add_argument('--dataset_file_path', type=str, default="dataset/data_sum")
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")
-
-    parser.add_argument('--save_model_name', type=str, default="save/saveModel/hand_camera_64_32.pt")
     parser.add_argument('--save_data_name', type=str, default="dataset/data_sum.pt")
-    parser.add_argument('--saved_result_csv_name', type=str, default="save/result_csv/result.csv")
+
+    parser.add_argument('--sensor', type=str, default="All")  # All, hand_camera, head_depth, force_torque,  mic
+    parser.add_argument('--save_model_name', type=str, default="save/saveModel/All_64_32.pt")
+
+
 
     args = parser.parse_args()
 
     return args
 
 
-def train(model, args, train_loader, valid_loader):
+def train(model, args, train_loader, valid_loader, writer):
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.MSELoss().to(args.device_id)
 
@@ -85,7 +79,7 @@ def train(model, args, train_loader, valid_loader):
                 optimizer.step()
                 train_losses.append(loss.item())
             except Exception as e:
-                print(e)
+                # print(e)
                 continue
 
         val_losses = []
@@ -110,7 +104,7 @@ def train(model, args, train_loader, valid_loader):
     return model.eval()
 
 
-def evaluate(model, args, test_loader, valid_loader, result_save=False):
+def evaluate(model, args, test_loader, valid_loader, writer, result_save=False):
     model = model.to(args.device_id)
     args.batch_size = 1
     model.eval()
@@ -172,6 +166,13 @@ if __name__ == '__main__':
     torch.multiprocessing.set_start_method('spawn')
     from model import model
 
+    # For tensorboard
+    now = datetime.now()
+    date_time = now.strftime("%Y-%m-%d-%H:%M:%S")
+    logdir = 'log/' + date_time
+    os.mkdir(logdir)
+    writer = SummaryWriter(log_dir=logdir)
+
     args = get_config()
     train_loader, valid_loader, test_loader = get_loaders(args)
 
@@ -185,8 +186,8 @@ if __name__ == '__main__':
     print(model)
 
     # train
-    train(model, args, train_loader, valid_loader)
-    evaluate(model, args, test_loader, valid_loader)
+    train(model, args, train_loader, valid_loader, writer)
+    evaluate(model, args, test_loader, valid_loader, writer)
     writer.close()
 
     # save eval
@@ -196,4 +197,4 @@ if __name__ == '__main__':
     #     df, losses = evaluate(model, args, test_loader, valid_loader, result_save=True)
     #     df_eval = df_eval.append(df, ignore_index=True)
     #
-    # df_eval[1:].to_csv(args.saved_result_csv_name)
+    # df_eval[1:].to_csv(args.save_model_name)

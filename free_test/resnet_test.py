@@ -9,8 +9,9 @@ import time
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-resnet50 = models.resnet50(pretrained=True) # in (18, 34, 50, 101, 152)
-resnet50 = resnet50.to(device)
+resnet18 = models.resnet18(pretrained=True) # in (18, 34, 50, 101, 152)
+print(resnet18)
+resnet18 = resnet18.to(device)
 
 hand_dir1 = '/data_ssd/hsr_dropobject/data/10_11_20:20:05/data/img/d/10.png'
 hand_dir2 = '/data_ssd/hsr_dropobject/data/10_11_20:20:05/data/img/d/11.png'
@@ -83,7 +84,7 @@ dataloader = torch.utils.data.DataLoader(hand_arr, batch_size=3,num_workers=3)
 
 for inputs in dataloader:
     inputs = inputs.to(device)
-    output = resnet50(inputs)
+    output = resnet18(inputs)
     print(output)
     print(output.shape)
 

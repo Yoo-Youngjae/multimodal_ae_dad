@@ -38,6 +38,7 @@ class Multisensory_Fusion(): # nn.Module
                 mm = self.conv1m(mm)
                 # mm.shape == 3, 8, 8
                 mm = mm.unsqueeze(0)
+                # mm.shape == 1, 3, 8, 8
                 if self.unimodal:
                     result = mm
             if r.shape[1] != 0:
@@ -52,6 +53,8 @@ class Multisensory_Fusion(): # nn.Module
                 # dd.shape == 1, 3, 1000
                 if self.unimodal:
                     result = dd
+            if not self.unimodal:
+                result = torch.cat((rr, dd, tt, mm), dim=1)
             out = torch.cat((out, result), 0)
 
 
