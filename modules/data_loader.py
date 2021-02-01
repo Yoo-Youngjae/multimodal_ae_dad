@@ -85,7 +85,7 @@ class HsrDataset(Dataset):
             t = t.astype(np.float32)    # t = torch.from_numpy(t.astype(np.float32))
         if self.mic or self.All:
             mic_df = cur_rows['mfcc00']
-            for i in range(1, 13):
+            for i in range(1, 16):
                 if i < 10:
                     mic_df = pd.concat([mic_df, cur_rows['mfcc0' + str(i)]], axis=1)
                 else:
@@ -122,10 +122,10 @@ class HsrDataset(Dataset):
                     d_base_im_arr = np.concatenate((d_base_im_arr, [d_im]), axis=0)
 
             r_base_im_arr = r_base_im_arr.transpose((0, 3, 1, 2))
-            r = r_base_im_arr   # r = torch.FloatTensor(r_base_im_arr)
+            r = torch.FloatTensor(r_base_im_arr)
 
             d_base_im_arr = d_base_im_arr.transpose((0, 3, 1, 2))
-            d = d_base_im_arr   # d = torch.FloatTensor(d_base_im_arr)
+            d = torch.FloatTensor(d_base_im_arr)
 
 
         if self.hand_camera:
@@ -280,7 +280,7 @@ def get_Dataframe(args):
         return pd.concat([hand_weight_series, label_series], axis=1)
     elif mic:
         mic_df = df_datasum['mfcc00']
-        for i in range(1, 13):
+        for i in range(1, 16):
             if i < 10:
                 mic_df = pd.concat([mic_df, df_datasum['mfcc0' + str(i)]], axis=1)
             else:
@@ -306,38 +306,6 @@ def norm_vec_np(v, range_in=None, range_out=None):
     v = (r_out * (v - range_in[0]) / r_in) + range_out[0]
     v = np.nan_to_num(v, nan=0.0)
     return v
-
-
-
-def preprocess(self):
-
-
-    if All:
-        resnet50 = models.resnet50(pretrained=True) # in (18, 34, 50, 101, 152)
-        # 2) hand_camera
-        r = norm_vec_np(base_hand_arr)
-        r = torch.from_numpy(r.astype(np.float32))
-        r = r.view(-1, 1, 3, 24, 32).squeeze()
-        r = F.interpolate(r, 32).view(-1, 1, 3, 32, 32)
-        print('r.shape', r.shape)
-
-        # 3) head_depth
-        d = norm_vec_np(base_depth_arr)
-        d = torch.from_numpy(d.astype(np.float32))
-        d = d.view(-1, 1, 24, 32)
-        d = F.interpolate(d, 32).view(-1, 1, 1, 32, 32)
-        print('d.shape', d.shape)
-
-        #4) mfcc
-        mic_df = mic_df.to_numpy()
-        m = norm_vec_np(mic_df)
-        m = torch.from_numpy(m.astype(np.float32))
-        m = m.view(-1, 1, 1, 13)
-        print('m.shape', m.shape)
-    multisensory_fusion = Multisensory_Fusion(unimodal,args)
-    data = multisensory_fusion.forward(r,d,m,t)
-    return data
-
 
 
 

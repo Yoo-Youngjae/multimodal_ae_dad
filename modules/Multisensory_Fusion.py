@@ -11,9 +11,9 @@ class Multisensory_Fusion(): # nn.Module
             self.unimodal = False
 
 
-        self.conv1im = nn.Conv2d(4, 8, kernel_size=2, stride=2)
-        self.conv2im = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1)
-        self.conv3im = nn.Conv2d(8, 8, kernel_size=2, stride=2)
+        self.conv1im = nn.Conv2d(4, 8, kernel_size=2, stride=2).to(self.args.device_id)
+        self.conv2im = nn.Conv2d(10, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id)
+        self.conv3im = nn.Conv2d(8, 8, kernel_size=2, stride=2).to(self.args.device_id)
 
     def fwd(self, r, d, m, t):
         # batch normalization
@@ -26,7 +26,6 @@ class Multisensory_Fusion(): # nn.Module
         # t[i] :   torch.Size([3])
         # im[i] :   torch.Size([3, 4, 32, 32])
 
-        print(r.shape, d.shape, m.shape, t.shape)
         im = im.to(self.args.device_id)
         m = m.to(self.args.device_id)
         t = t.to(self.args.device_id)
@@ -45,10 +44,9 @@ class Multisensory_Fusion(): # nn.Module
                 if self.unimodal:
                     result = tt
             if m.shape[1] != 0:     # m is not None
-                # m[i].shape == 3, 13
+                # m[i].shape == 3, 16
                 mm = m[i].unsqueeze(1)
-                # mm.shape == 3, 1, 13
-                # todo : 16 -> (16, 16)
+                # mm.shape == 3, 1, 16
                 mm = mm.repeat(1, 16, 1)
                 # mm.shape == 3, 16, 16
                 mm = mm.unsqueeze(1)
@@ -60,18 +58,22 @@ class Multisensory_Fusion(): # nn.Module
                 # im[i].shape == 3, 4, 32, 32
                 imim = self.conv1im(im[i])
                 # imim.shape == 3, 8, 16, 16
-
                 if self.unimodal:
                     result = imim
 
             if not self.unimodal:
-                im = torch.cat((imim, tt,mm), 1)
+                multimodal = torch.cat((imim, tt, mm), 1)
                 # im.shape == 3, 10, 16, 16
-                result = im.unsqueeze(0)
+                multimodal = self.conv2im(multimodal)
+                # im.shape == 3, 8, 16, 16
+                multimodal = self.conv3im(multimodal)
+                # im.shape == 3, 8, 8, 8
+                result = multimodal.unsqueeze(0)
+                # result.shape == 1, 3, 8, 8, 8
             out = torch.cat((out, result), 0)
 
 
-        out = out.view(-1, self.args.seq_len, self.args.n_features)
+        out = out.view(self.batch_size, self.args.seq_len, self.args.n_features)
         return out
 
     ## todo : Normalization!!!
