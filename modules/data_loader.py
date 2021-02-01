@@ -42,7 +42,7 @@ class HsrDataset(Dataset):
         self.mic = False
         self.hand_camera = False
         self.head_depth = False
-        self.compose = transforms.Compose([transforms.Resize((49, 49))])  # (49, 49)
+        self.compose = transforms.Compose([transforms.Resize((32, 24))])  # (49, 49)
 
         if args.sensor == 'All':
             self.All = True
@@ -82,8 +82,7 @@ class HsrDataset(Dataset):
         if self.force_torque or self.All:
             hand_weight_series = cur_rows['cur_hand_weight']
             t = hand_weight_series.to_numpy()
-            # t = norm_vec_np(t)
-            t = torch.from_numpy(t.astype(np.float32))
+            t = t.astype(np.float32)    # t = torch.from_numpy(t.astype(np.float32))
         if self.mic or self.All:
             mic_df = cur_rows['mfcc00']
             for i in range(1, 13):
@@ -92,48 +91,43 @@ class HsrDataset(Dataset):
                 else:
                     mic_df = pd.concat([mic_df, cur_rows['mfcc' + str(i)]], axis=1)
             m = mic_df.to_numpy()
-            # m = norm_vec_np(m)
-            m = torch.from_numpy(m.astype(np.float32))
+            m = m.astype(np.float32)    # m = torch.from_numpy(m.astype(np.float32))
         if self.All:
             data_dirs = cur_rows['data_dir']
             r_img_dirs = cur_rows['cur_hand_id']
             d_img_dirs = cur_rows['cur_depth_id']
             r_sub_path = '/data/img/hand/'
             d_sub_path = '/data/img/d/'
-
             firstRow = True
 
-            ## todo : Is this needed interpolation ?
+
             for r_img_dir, d_img_dir, data_dir in zip(r_img_dirs, d_img_dirs, data_dirs):
                 r_img_dir = self.args.origin_datafile_path + data_dir + r_sub_path + str(int(r_img_dir)) + '.png'
                 d_img_dir = self.args.origin_datafile_path + data_dir + d_sub_path + str(int(d_img_dir)) + '.png'
-                r_im = Image.open(r_img_dir)
-                r_im = self.compose(r_im)
-                r_im = np.array(r_im)
 
-                d_im = Image.open(d_img_dir)
-                d_im = self.compose(d_im)
+                r_im = Image.open(r_img_dir).resize((32, 32))
+                r_im = np.array(r_im)
+                d_im = Image.open(d_img_dir).resize((32, 32))
                 d_im = np.array(d_im)
+                d_im = d_im[:, :, np.newaxis]   # unsqueeze
 
                 if firstRow:
                     firstRow = False
                     r_base_im_arr = [r_im]
                     d_base_im_arr = [d_im]
+
+
                 else:
                     r_base_im_arr = np.concatenate((r_base_im_arr, [r_im]), axis=0)
                     d_base_im_arr = np.concatenate((d_base_im_arr, [d_im]), axis=0)
 
             r_base_im_arr = r_base_im_arr.transpose((0, 3, 1, 2))
-            r_im_arr = torch.FloatTensor(r_base_im_arr)
-            r_im_arr = r_im_arr.to(self.args.device_id)
+            r = r_base_im_arr   # r = torch.FloatTensor(r_base_im_arr)
 
-            d_base_im_arr = np.repeat(d_base_im_arr[..., np.newaxis], 3, -1)
             d_base_im_arr = d_base_im_arr.transpose((0, 3, 1, 2))
-            d_im_arr = torch.FloatTensor(d_base_im_arr)
-            d_im_arr = d_im_arr.to(self.args.device_id)
-            with torch.no_grad():
-                r = self.resnet50(r_im_arr)
-                d = self.resnet50(d_im_arr)
+            d = d_base_im_arr   # d = torch.FloatTensor(d_base_im_arr)
+
+
         if self.hand_camera:
             data_dirs = cur_rows['data_dir']
             img_dirs = cur_rows['cur_hand_id']

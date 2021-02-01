@@ -64,23 +64,23 @@ def train(model, args, train_loader, valid_loader, writer):
         model.train()
         train_losses = []
         for r, d, m, t, label in tqdm(train_loader):
-            try:
-                optimizer.zero_grad()
-                train_input_representation = multisensory_fusion.fwd(r, d, m, t)
-                train_input_representation = train_input_representation.to(args.device_id)
-                train_output = model(train_input_representation)
-                loss = criterion(train_output, train_input_representation)
-                writer.add_scalar("Train/train_loss", loss, train_log_idx)
-                train_log_idx += 1
-                loss.backward()
+            # try:
+            optimizer.zero_grad()
+            train_input_representation = multisensory_fusion.fwd(r, d, m, t)
+            train_input_representation = train_input_representation.to(args.device_id)
+            train_output = model(train_input_representation)
+            loss = criterion(train_output, train_input_representation)
+            writer.add_scalar("Train/train_loss", loss, train_log_idx)
+            train_log_idx += 1
+            loss.backward()
 
-                # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-                optimizer.step()
-                train_losses.append(loss.item())
-            except Exception as e:
-                # print(e)
-                continue
+            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            optimizer.step()
+            train_losses.append(loss.item())
+            # except Exception as e:
+            #     # print(e)
+            #     continue
 
         val_losses = []
         model.eval()
@@ -163,7 +163,7 @@ def evaluate(model, args, test_loader, valid_loader, writer, result_save=False):
 
 if __name__ == '__main__':
     # Below line is solution for [RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method]
-    torch.multiprocessing.set_start_method('spawn')
+    # torch.multiprocessing.set_start_method('spawn')
     from model import model
 
     # For tensorboard
