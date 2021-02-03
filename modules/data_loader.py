@@ -4,9 +4,8 @@ import numpy as np
 from tqdm import tqdm
 import torch
 import os
-from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
-from torchvision import models, transforms
+from torchvision import transforms
 
 
 
@@ -16,13 +15,13 @@ def get_n_features(sensor):
         val = 8 * 8 * 8 # 1000 + 1000 + 64 + 64
         return val
     elif sensor == 'hand_camera':
-        return 1000     # 1024
+        return 512     # 1024
     elif sensor == 'head_depth':
         return 1000     # 512
     elif sensor == 'force_torque':
-        return 64
+        return 256
     elif sensor == 'mic':
-        return 64       # 128
+        return 256       # 128
 
 
 class HsrDataset(Dataset):
@@ -51,13 +50,10 @@ class HsrDataset(Dataset):
             self.force_torque = True
         elif args.sensor == 'mic':
             self.mic = True
-        elif args.sensor == 'hand_camera' or args.sensor == 'head_depth':
-            if args.sensor == 'hand_camera':
+        elif args.sensor == 'hand_camera':
                 self.hand_camera = True
-            elif args.sensor == 'head_depth':
-                self.head_depth = True
-            resnet50 = models.resnet50(pretrained=True)  # in (18, 34, 50, 101, 152)
-            self.resnet50 = resnet50.to(self.args.device_id)
+        elif args.sensor == 'head_depth':
+            self.head_depth = True
 
 
 
@@ -130,55 +126,49 @@ class HsrDataset(Dataset):
 
         if self.hand_camera:
             data_dirs = cur_rows['data_dir']
-            img_dirs = cur_rows['cur_hand_id']
-            sub_path = '/data/img/hand/'
+            r_img_dirs = cur_rows['cur_hand_id']
+            r_sub_path = '/data/img/hand/'
             firstRow = True
 
-            ## todo : Is this needed interpolation ?
-            for img_dir, data_dir in zip(img_dirs, data_dirs):
-                img_dir = self.args.origin_datafile_path + data_dir + sub_path + str(int(img_dir)) + '.png'
-                im = Image.open(img_dir)
-                im = self.compose(im)
-                im_arr = np.array(im)
+            for r_img_dir, data_dir in zip(r_img_dirs, data_dirs):
+                r_img_dir = self.args.origin_datafile_path + data_dir + r_sub_path + str(int(r_img_dir)) + '.png'
+
+                r_im = Image.open(r_img_dir).resize((32, 32))
+                r_im = np.array(r_im)
 
                 if firstRow:
                     firstRow = False
-                    base_im_arr = [im_arr]
-                else:
-                    base_im_arr = np.concatenate((base_im_arr, [im_arr]), axis=0)
+                    r_base_im_arr = [r_im]
 
-            base_im_arr = base_im_arr.transpose((0, 3, 1, 2))
-            im_arr = torch.FloatTensor(base_im_arr)
-            im_arr = im_arr.to(self.args.device_id)
-            with torch.no_grad():
-                r = self.resnet50(im_arr)
+
+                else:
+                    r_base_im_arr = np.concatenate((r_base_im_arr, [r_im]), axis=0)
+
+            r_base_im_arr = r_base_im_arr.transpose((0, 3, 1, 2))
+            r = torch.FloatTensor(r_base_im_arr)
+
 
         if self.head_depth:
             data_dirs = cur_rows['data_dir']
-            img_dirs = cur_rows['cur_depth_id']
-            sub_path = '/data/img/d/'
+            d_img_dirs = cur_rows['cur_depth_id']
+            d_sub_path = '/data/img/d/'
             firstRow = True
 
-            ## todo : Is this needed interpolation ?
-            for img_dir, data_dir in zip(img_dirs, data_dirs):
-                img_dir = self.args.origin_datafile_path + data_dir + sub_path + str(int(img_dir)) + '.png'
-                im = Image.open(img_dir)
-                im = self.compose(im)
-                im_arr = np.array(im)
+            for d_img_dir, data_dir in zip(d_img_dirs, data_dirs):
+                d_img_dir = self.args.origin_datafile_path + data_dir + d_sub_path + str(int(d_img_dir)) + '.png'
+
+                d_im = Image.open(d_img_dir).resize((32, 32))
+                d_im = np.array(d_im)
+                d_im = d_im[:, :, np.newaxis]  # unsqueeze
 
                 if firstRow:
                     firstRow = False
-                    base_im_arr = [im_arr]
+                    d_base_im_arr = [d_im]
                 else:
-                    base_im_arr = np.concatenate((base_im_arr, [im_arr]), axis=0)
+                    d_base_im_arr = np.concatenate((d_base_im_arr, [d_im]), axis=0)
 
-            base_im_arr = np.repeat(base_im_arr[..., np.newaxis], 3, -1)
-            base_im_arr = base_im_arr.transpose((0, 3, 1, 2))
-            im_arr = torch.FloatTensor(base_im_arr)
-            im_arr = im_arr.to(self.args.device_id)
-            with torch.no_grad():
-                d = self.resnet50(im_arr)
-
+            d_base_im_arr = d_base_im_arr.transpose((0, 3, 1, 2))
+            d = torch.FloatTensor(d_base_im_arr)
 
         return r, d, m, t, label
 
@@ -201,9 +191,11 @@ def split_train_test(full_dataframe, args):
     idxs = [[i, i+1, i+2] for i in range(data_len - 2)]
     normal_idx = []
     abnormal_idx = []
-    if os.path.exists('dataset/normal_idx.pt'):
-        normal_idx = torch.load('dataset/normal_idx.pt')
-        abnormal_idx = torch.load('dataset/abnormal_idx.pt')
+    normal_idx_dir = args.dataset_file_path + args.dataset_file_name + '_normal_idx.pt'
+    abnormal_idx_dir = args.dataset_file_path + args.dataset_file_name + '_abnormal_idx.pt'
+    if os.path.exists(normal_idx_dir):
+        normal_idx = torch.load(normal_idx_dir)
+        abnormal_idx = torch.load(abnormal_idx_dir)
     else:
         for a, b, c in tqdm(idxs):
             if full_dataframe.loc[a]['label'] == 0 and full_dataframe.loc[b]['label'] == 0 and full_dataframe.loc[c]['label'] == 0:
@@ -214,8 +206,8 @@ def split_train_test(full_dataframe, args):
                 abnormal_idx.append([a+2, b+2, c+2])
                 abnormal_idx.append([a+3, b+3, c+3])
                 abnormal_idx.append([a+4, b+4, c+4])
-        torch.save(normal_idx, 'dataset/normal_idx.pt')
-        torch.save(abnormal_idx, 'dataset/abnormal_idx.pt')
+        torch.save(normal_idx, normal_idx_dir)
+        torch.save(abnormal_idx, abnormal_idx_dir)
 
     train_valid_test_ratio = [0.6, 0.2, 0.2]
     train_valid_size = [int(train_valid_test_ratio[0] * data_len), int(train_valid_test_ratio[1] * data_len)]
@@ -253,22 +245,23 @@ def get_Dataframe(args):
         head_depth = True
 
     # 0. save file already existed
-    if os.path.exists(args.save_data_name):
-        return torch.load(args.save_data_name)
+    # if os.path.exists(args.save_data_name):
+    #     return torch.load(args.save_data_name)
 
     # 1. load csv files
+    file_path = args.dataset_file_path + args.dataset_file_name     # dataset/data_sum
     if args.dataset_file_name == 'data_sum':
-        df_datasum = pd.read_csv(args.dataset_file_path + '0.csv')
-        df_datasum = df_datasum.append(pd.read_csv(args.dataset_file_path + '1.csv'), ignore_index=True)
-        df_datasum = df_datasum.append(pd.read_csv(args.dataset_file_path + '2.csv'), ignore_index=True)
-        df_datasum = df_datasum.append(pd.read_csv(args.dataset_file_path + '3.csv'), ignore_index=True)
-        df_datasum = df_datasum.append(pd.read_csv(args.dataset_file_path + '4.csv'), ignore_index=True)
-        df_datasum = df_datasum.append(pd.read_csv(args.dataset_file_path + '5.csv'), ignore_index=True)
-        df_datasum = df_datasum.append(pd.read_csv(args.dataset_file_path + '6.csv'), ignore_index=True)
-        df_datasum = df_datasum.append(pd.read_csv(args.dataset_file_path + '7.csv'), ignore_index=True)
+        df_datasum = pd.read_csv(file_path + '0.csv')
+        df_datasum = df_datasum.append(pd.read_csv(file_path + '1.csv'), ignore_index=True)
+        df_datasum = df_datasum.append(pd.read_csv(file_path + '2.csv'), ignore_index=True)
+        df_datasum = df_datasum.append(pd.read_csv(file_path + '3.csv'), ignore_index=True)
+        df_datasum = df_datasum.append(pd.read_csv(file_path + '4.csv'), ignore_index=True)
+        df_datasum = df_datasum.append(pd.read_csv(file_path + '5.csv'), ignore_index=True)
+        df_datasum = df_datasum.append(pd.read_csv(file_path + '6.csv'), ignore_index=True)
+        df_datasum = df_datasum.append(pd.read_csv(file_path + '7.csv'), ignore_index=True)
     else:
         # dataset_file_name == 'data_sum_motion' or 'data_sum_free'
-        df_datasum = pd.read_csv(args.dataset_file_path + '0.csv')
+        df_datasum = pd.read_csv(file_path + '0.csv')
 
     df_datasum.index = [i for i in range(len(df_datasum.index))]
     ## 2. essential erase

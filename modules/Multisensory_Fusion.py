@@ -1,32 +1,38 @@
 from torch import nn
 import torch
-import numpy as np
-class Multisensory_Fusion(): # nn.Module
+
+class Multisensory_Fusion(nn.Module): # nn.Module
     def __init__(self, args):
-        # super(Multisensory_Fusion, self).__init__()
+        super(Multisensory_Fusion, self).__init__()
         self.args = args
         self.batch_size = args.batch_size
         self.unimodal = True
         if args.sensor == 'All':
             self.unimodal = False
 
-
+        # for All
         self.conv1im = nn.Conv2d(4, 8, kernel_size=2, stride=2).to(self.args.device_id)
         self.conv2im = nn.Conv2d(10, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id)
         self.conv3im = nn.Conv2d(8, 8, kernel_size=2, stride=2).to(self.args.device_id)
 
+        # for unimodal
+        self.conv1r = nn.Conv2d(3, 8, kernel_size=2, stride=2).to(self.args.device_id)
+        self.conv2r = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id)
+
     def fwd(self, r, d, m, t):
         # batch normalization
         # t = self.norm_vec(t)
-        im = torch.cat((r, d), 2)
+        if self.args.sensor == 'All':
+            im = torch.cat((r, d), 2)
+            im = im.to(self.args.device_id)
 
         # r[i] :   torch.Size([3, 3, 32, 32])
         # d[i] :   torch.Size([3, 1, 32, 32])
         # m[i] :   torch.Size([3, 13])
         # t[i] :   torch.Size([3])
         # im[i] :   torch.Size([3, 4, 32, 32])
-
-        im = im.to(self.args.device_id)
+        r = r.to(self.args.device_id)
+        d = d.to(self.args.device_id)
         m = m.to(self.args.device_id)
         t = t.to(self.args.device_id)
         out = torch.Tensor().to(self.args.device_id)
@@ -54,14 +60,21 @@ class Multisensory_Fusion(): # nn.Module
 
                 if self.unimodal:
                     result = mm
-            if im.shape[1] != 0:    # im is not None
+            if self.args.sensor == 'hand_camera':   # unimodal
+                # r[i].shape == 3, 3, 32, 32
+                rr = self.conv1r(r[i])
+                # rr.shape == 3, 8, 16, 16
+                rr = self.conv2r(rr)
+                # im.shape == 3, 8, 16, 16
+                rr = self.conv3im(rr)
+                # im.shape == 3, 8, 8, 8
+                result = rr.unsqueeze(0)
+                # result.shape == 1, 3, 8, 8, 8
+
+            if self.args.sensor == 'All':
                 # im[i].shape == 3, 4, 32, 32
                 imim = self.conv1im(im[i])
                 # imim.shape == 3, 8, 16, 16
-                if self.unimodal:
-                    result = imim
-
-            if not self.unimodal:
                 multimodal = torch.cat((imim, tt, mm), 1)
                 # im.shape == 3, 10, 16, 16
                 multimodal = self.conv2im(multimodal)
