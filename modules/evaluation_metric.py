@@ -1,4 +1,3 @@
-
 import numpy as np
 from sklearn import metrics
 import matplotlib.pyplot as plt
@@ -24,7 +23,7 @@ def get_auc_roc(score, test_label, writer, nap=False):
 def get_auc_prc(score, test_label, writer):
     try:
         precisions, recalls, threshold = metrics.precision_recall_curve(test_label, score)
-        # precision, recall = get_confusion_matrix(score, test_label, threshold)
+
         fig = plt.figure()
         pr_auc = metrics.auc(recalls, precisions)
         plt.title('Precision Recall Characteristic')
@@ -71,13 +70,14 @@ def get_confusion_matrix(score, test_label, threshold, writer):
     score_label = []
     for i in score:
         if i >= threshold:
-            score_label.append(False)
+            score_label.append(1)   # positive
         else:
-            score_label.append(True)
+            score_label.append(0)   # negative
 
     tn, fp, fn, tp = metrics.confusion_matrix(test_label, score_label).ravel()
     conf_matrix_str = 'Tn, Fp : '+str(tn)+', '+str(fp)+' / Fn, Tp : '+str(fn)+', '+str(tp)
+    print('Tn, Fp : '+str(tn)+', '+str(fp)+'\nFn, Tp : '+str(fn)+', '+str(tp))
     writer.add_text("Performance/confusion_matrix", conf_matrix_str)
-    precision = tp/ (tp+fp)
-    recall = tp/ (tp+fn)
+    precision = tp / (tp+fp)
+    recall = tp / (tp+fn)
     return precision, recall

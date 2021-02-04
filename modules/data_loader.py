@@ -3,9 +3,9 @@ from PIL import Image
 import numpy as np
 from tqdm import tqdm
 import torch
-import os
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
+import os
 
 
 

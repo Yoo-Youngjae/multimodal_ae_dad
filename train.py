@@ -1,26 +1,24 @@
 import argparse
 import torch
 import torch.nn as nn
-from matplotlib import pyplot as plt
-
 from torch import optim
-from modules.data_loader import get_loaders, get_n_features
-from modules.Multisensory_Fusion import Multisensory_Fusion
-from modules.evaluation_metric import get_recon_loss
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import os
 from tqdm import tqdm
-from sklearn import metrics
+
+from modules.data_loader import get_loaders, get_n_features
+from modules.evaluation_metric import get_recon_loss
+
 
 
 
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
-    parser.add_argument('--epochs', type=int, default=2, help='upper epoch limit') # 30
-    parser.add_argument('--batch_size', type=int, default=64, help='batch_size') # 64
+    parser.add_argument('--epochs', type=int, default=10, help='upper epoch limit') # 30
+    parser.add_argument('--batch_size', type=int, default=32, help='batch_size') # 64
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout applied to layers (0 = no dropout)')
@@ -39,12 +37,10 @@ def get_config():
     parser.add_argument('--embedding_dim', type=int, default=128, help='embedding dimension')  # 32, 128
 
 
-    parser.add_argument('--sensor', type=str, default="hand_camera")  # All, force_torque,  mic, hand_camera
+    parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
 
-    parser.add_argument('--dataset_file_name', type=str, default="data_sum_free")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="embedding_dim_128")
-
-
+    parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
+    parser.add_argument('--log_memo', type=str, default="fusion_leaky_relu_loss_rsme_normalize_0_to_1")
 
     args = parser.parse_args()
 
@@ -55,7 +51,6 @@ def train(model, args, train_loader, valid_loader, writer):
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.MSELoss().to(args.device_id)
 
-    multisensory_fusion = Multisensory_Fusion(args)
     train_log_idx = 0
     valid_log_idx = 0
     for epoch in range(args.epochs):
@@ -64,10 +59,8 @@ def train(model, args, train_loader, valid_loader, writer):
         for r, d, m, t, label in tqdm(train_loader):
             try:
                 optimizer.zero_grad()
-                train_input_representation = multisensory_fusion.fwd(r, d, m, t)
-                train_input_representation = train_input_representation.to(args.device_id)
-                train_output = model(train_input_representation)
-                loss = criterion(train_output, train_input_representation)
+                train_output, input_representation = model(r, d, m, t)
+                loss = criterion(train_output, input_representation) ** 0.5
                 writer.add_scalar("Train/train_loss", loss, train_log_idx)
                 train_log_idx += 1
                 loss.backward()
@@ -77,7 +70,7 @@ def train(model, args, train_loader, valid_loader, writer):
                 optimizer.step()
                 train_losses.append(loss.item())
             except Exception as e:
-                # print(e)
+                print(e)
                 continue
 
         val_losses = []
@@ -85,10 +78,8 @@ def train(model, args, train_loader, valid_loader, writer):
         with torch.no_grad():
             for r, d, m, t, label in tqdm(valid_loader):
                 try:
-                    valid_input_representation = multisensory_fusion.fwd(r, d, m, t)
-                    valid_input_representation = valid_input_representation.to(args.device_id)
-                    valid_output = model(valid_input_representation)
-                    loss = criterion(valid_output, valid_input_representation)
+                    valid_output, input_representation = model(r, d, m, t)
+                    loss = criterion(valid_output, input_representation)
                     writer.add_scalar("Train/valid_loss", loss, valid_log_idx)
                     valid_log_idx += 1
                     val_losses.append(loss.item())
@@ -104,11 +95,12 @@ def train(model, args, train_loader, valid_loader, writer):
 
 def evaluate(model, args, test_loader, valid_loader, writer):
     model = model.to(args.device_id)
-    args.batch_size = 1
+    model.args.batch_size = 1
+    model.multisensory_fusion.batch_size = 1
+
     model.eval()
     predictions, losses = [], []
     criterion = nn.MSELoss().to(args.device_id)
-    multisensory_fusion = Multisensory_Fusion(args)
     labels = []
     val_losses = []
     normal_losses = []
@@ -119,20 +111,16 @@ def evaluate(model, args, test_loader, valid_loader, writer):
     with torch.no_grad():
         for r, d, m, t, label in tqdm(valid_loader):
             try:
-                valid_input_representation = multisensory_fusion.fwd(r, d, m, t)
-                valid_input_representation = valid_input_representation.to(args.device_id)
-                valid_output = model(valid_input_representation)
-                loss = criterion(valid_output, valid_input_representation)
+                valid_output, input_representation = model(r, d, m, t)
+                loss = criterion(valid_output, input_representation)
                 val_losses.append(loss.item())
             except Exception as e:
                 pass
 
         for r, d, m, t, label in tqdm(test_loader):
             try:
-                test_input_representation = multisensory_fusion.fwd(r, d, m, t)
-                test_input_representation = test_input_representation.to(args.device_id)
-                test_output = model(test_input_representation)
-                loss = criterion(test_output, test_input_representation)
+                test_output, input_representation = model(r, d, m, t)
+                loss = criterion(test_output, input_representation)
                 predictions.append(test_output.cpu().numpy().flatten())
                 losses.append(loss.item())
                 labels.append(label)
@@ -144,14 +132,12 @@ def evaluate(model, args, test_loader, valid_loader, writer):
                     writer.add_scalar("Test/Abnormal_Loss", loss, eval_test_log_idx)
                     eval_test_log_idx += 1
                     abnormal_losses.append(loss.item())
-
             except Exception as e:
                 pass
         print(f'Mean normal_losses {np.mean(normal_losses)}')
         print(f'Mean abnormal_losses {np.mean(abnormal_losses)}')
-
         base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(losses, val_losses, labels, writer)
-        print('base_f1scores, base_precisions, base_recalls', base_f1scores, base_precisions, base_recalls)
+        print('base_f1scores, base_precisions, base_recalls', round(base_f1scores, 4), round(base_precisions, 4), round(base_recalls, 4))
         return base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls, np.mean(normal_losses), np.mean(abnormal_losses)
 
 
@@ -162,7 +148,7 @@ if __name__ == '__main__':
     from model import model
 
     args = get_config()
-    # For tensorboard
+    ## For tensorboard
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d-%H:%M:%S")
     log_name = date_time + '_' + args.sensor + '_' + args.dataset_file_name+'_'+args.log_memo
@@ -184,6 +170,7 @@ if __name__ == '__main__':
 
     # train
     train(model, args, train_loader, valid_loader, writer)
+    # test
     base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls, avg_normal_loss, avg_abnormal_loss = evaluate(model, args, test_loader, valid_loader, writer)
 
     writer.add_scalar("Performance/base_auroc", base_auroc, 0)

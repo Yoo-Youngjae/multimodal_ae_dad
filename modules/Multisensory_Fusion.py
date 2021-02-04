@@ -1,5 +1,7 @@
 from torch import nn
 import torch
+import torch.nn.functional as F
+from torchvision.transforms import Normalize
 
 class Multisensory_Fusion(nn.Module): # nn.Module
     def __init__(self, args):
@@ -9,6 +11,7 @@ class Multisensory_Fusion(nn.Module): # nn.Module
         self.unimodal = True
         if args.sensor == 'All':
             self.unimodal = False
+        # self.testTensor = torch.rand(3, 3, 32, 32).to(self.args.device_id)
 
         # for All
         self.conv1im = nn.Conv2d(4, 8, kernel_size=2, stride=2).to(self.args.device_id)
@@ -19,9 +22,14 @@ class Multisensory_Fusion(nn.Module): # nn.Module
         self.conv1r = nn.Conv2d(3, 8, kernel_size=2, stride=2).to(self.args.device_id)
         self.conv2r = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id)
 
-    def fwd(self, r, d, m, t):
+    def forward(self, r, d, m, t):
         # batch normalization
-        # t = self.norm_vec(t)
+
+        r = self.norm_vec(r, range_in=[0,255])
+        d = self.norm_vec(d, range_in=[0,255])
+        m = self.norm_vec(m)
+        t = self.norm_vec(t)
+
         if self.args.sensor == 'All':
             im = torch.cat((r, d), 2)
             im = im.to(self.args.device_id)
@@ -70,21 +78,21 @@ class Multisensory_Fusion(nn.Module): # nn.Module
                 # im.shape == 3, 8, 8, 8
                 result = rr.unsqueeze(0)
                 # result.shape == 1, 3, 8, 8, 8
+                # print(self.conv1r(self.testTensor)[0][0][0][0])
 
             if self.args.sensor == 'All':
                 # im[i].shape == 3, 4, 32, 32
-                imim = self.conv1im(im[i])
+                imim = F.leaky_relu(self.conv1im(im[i]))
                 # imim.shape == 3, 8, 16, 16
                 multimodal = torch.cat((imim, tt, mm), 1)
                 # im.shape == 3, 10, 16, 16
-                multimodal = self.conv2im(multimodal)
+                multimodal = F.leaky_relu(self.conv2im(multimodal))
                 # im.shape == 3, 8, 16, 16
-                multimodal = self.conv3im(multimodal)
+                multimodal = F.leaky_relu(self.conv3im(multimodal))
                 # im.shape == 3, 8, 8, 8
                 result = multimodal.unsqueeze(0)
                 # result.shape == 1, 3, 8, 8, 8
             out = torch.cat((out, result), 0)
-
 
         out = out.view(self.batch_size, self.args.seq_len, self.args.n_features)
         return out
@@ -92,11 +100,11 @@ class Multisensory_Fusion(nn.Module): # nn.Module
     ## todo : Normalization!!!
     def norm_vec(self,v, range_in=None, range_out=None):
         if range_out is None:
-            range_out = [-1, 1]
+            range_out = [0, 1]
         if range_in is None:
-            range_in = [torch.min(v, 0), torch.max(v, 0)] # [0] [0]
+            range_in = [torch.min(v), torch.max(v)]
+
         r_out = range_out[1] - range_out[0]
         r_in = range_in[1] - range_in[0]
         v = (r_out * (v - range_in[0]) / r_in) + range_out[0]
-        # v = self.nan_to_num(v, nan=0.0)
         return v

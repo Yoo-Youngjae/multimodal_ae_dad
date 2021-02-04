@@ -1,8 +1,7 @@
 import torch.nn as nn
-import torch
-from torch.autograd import Variable
-import torch.nn.functional as F
+
 from modules.utils import get_hidden_layer_sizes
+from modules.Multisensory_Fusion import Multisensory_Fusion
 
 # https://github.com/curiousily/Getting-Things-Done-with-Pytorch/blob/master/06.time-series-anomaly-detection-ecg.ipynb
 
@@ -11,14 +10,16 @@ class LSTM_AE(nn.Module):
     def __init__(self, args, seq_len, n_features, embedding_dim=64):
         super(LSTM_AE, self).__init__()
         self.args = args
-
+        self.multisensory_fusion = Multisensory_Fusion(args)
         self.encoder = Encoder(seq_len, args, n_features, embedding_dim).to(args.device_id)
         self.decoder = Decoder(seq_len, args, embedding_dim, n_features).to(args.device_id)
 
-    def forward(self, x):
-        x, encoder_state = self.encoder(x)
+    def forward(self, r, d, m, t):
+        input_representation = self.multisensory_fusion(r, d, m, t)
+        input_representation = input_representation.to(self.args.device_id)
+        x, encoder_state = self.encoder(input_representation)
         x = self.decoder(x, encoder_state)
-        return x
+        return x, input_representation
 
 
 class Encoder(nn.Module):
