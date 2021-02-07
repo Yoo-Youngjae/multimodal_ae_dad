@@ -11,22 +11,32 @@ class Multisensory_Fusion(nn.Module): # nn.Module
         self.unimodal = True
         if args.sensor == 'All':
             self.unimodal = False
-        # self.testTensor = torch.rand(3, 3, 32, 32).to(self.args.device_id)
 
-        # for All
-        self.conv1im = nn.Conv2d(4, 8, kernel_size=2, stride=2).to(self.args.device_id)
-        self.conv2im = nn.Conv2d(10, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id)
-        self.conv3im = nn.Conv2d(8, 8, kernel_size=2, stride=2).to(self.args.device_id)
+        # for Multimodal
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(4, 8, kernel_size=2, stride=2).to(self.args.device_id),
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(8),
+        )
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(10, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id),
+            nn.LeakyReLU(),     # im.shape == 3, 8, 16, 16
+            nn.BatchNorm2d(8),
+            nn.Conv2d(8, 8, kernel_size=2, stride=2).to(self.args.device_id),
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(8),  # im.shape == 3, 8, 8, 8
+        )
 
-        # for unimodal
+        # for Unimodal
         self.conv1r = nn.Conv2d(3, 8, kernel_size=2, stride=2).to(self.args.device_id)
         self.conv2r = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id)
+        self.conv3r = nn.Conv2d(8, 8, kernel_size=2, stride=2).to(self.args.device_id),
+
 
     def forward(self, r, d, m, t):
         # batch normalization
-
-        r = self.norm_vec(r, range_in=[0,255])
-        d = self.norm_vec(d, range_in=[0,255])
+        r = self.norm_vec(r, range_in=[0, 255])
+        d = self.norm_vec(d, range_in=[0, 255])
         m = self.norm_vec(m)
         t = self.norm_vec(t)
 
@@ -74,21 +84,19 @@ class Multisensory_Fusion(nn.Module): # nn.Module
                 # rr.shape == 3, 8, 16, 16
                 rr = self.conv2r(rr)
                 # im.shape == 3, 8, 16, 16
-                rr = self.conv3im(rr)
+                rr = self.conv3r(rr)
                 # im.shape == 3, 8, 8, 8
                 result = rr.unsqueeze(0)
                 # result.shape == 1, 3, 8, 8, 8
-                # print(self.conv1r(self.testTensor)[0][0][0][0])
 
             if self.args.sensor == 'All':
                 # im[i].shape == 3, 4, 32, 32
-                imim = F.leaky_relu(self.conv1im(im[i]))
+                # batch norm
+                imim = self.layer1(im[i])
                 # imim.shape == 3, 8, 16, 16
                 multimodal = torch.cat((imim, tt, mm), 1)
                 # im.shape == 3, 10, 16, 16
-                multimodal = F.leaky_relu(self.conv2im(multimodal))
-                # im.shape == 3, 8, 16, 16
-                multimodal = F.leaky_relu(self.conv3im(multimodal))
+                multimodal = self.layer2(multimodal)
                 # im.shape == 3, 8, 8, 8
                 result = multimodal.unsqueeze(0)
                 # result.shape == 1, 3, 8, 8, 8
@@ -100,7 +108,7 @@ class Multisensory_Fusion(nn.Module): # nn.Module
     ## todo : Normalization!!!
     def norm_vec(self,v, range_in=None, range_out=None):
         if range_out is None:
-            range_out = [0, 1]
+            range_out = [-1, 1]
         if range_in is None:
             range_in = [torch.min(v), torch.max(v)]
 

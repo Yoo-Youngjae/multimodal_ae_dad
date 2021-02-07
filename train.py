@@ -17,7 +17,7 @@ from modules.evaluation_metric import get_recon_loss
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
-    parser.add_argument('--epochs', type=int, default=10, help='upper epoch limit') # 30
+    parser.add_argument('--epochs', type=int, default=100, help='upper epoch limit') # 30
     parser.add_argument('--batch_size', type=int, default=32, help='batch_size') # 64
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
@@ -36,83 +36,64 @@ def get_config():
     parser.add_argument('--object_type', type=str, default="bottle")
     parser.add_argument('--embedding_dim', type=int, default=128, help='embedding dimension')  # 32, 128
 
-
     parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="fusion_leaky_relu_loss_rsme_normalize_0_to_1")
+    parser.add_argument('--log_memo', type=str, default="batchnorm_3layer_at_MulFu")
 
     args = parser.parse_args()
 
     return args
 
 
-def train(model, args, train_loader, valid_loader, writer):
+def train(model, args, train_loader, writer, train_log_idx):
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    # criterion = nn.CrossEntropyLoss().to(args.device_id)
     criterion = nn.MSELoss().to(args.device_id)
 
-    train_log_idx = 0
-    valid_log_idx = 0
-    for epoch in range(args.epochs):
-        model.train()
-        train_losses = []
-        for r, d, m, t, label in tqdm(train_loader):
-            try:
-                optimizer.zero_grad()
-                train_output, input_representation = model(r, d, m, t)
-                loss = criterion(train_output, input_representation) ** 0.5
-                writer.add_scalar("Train/train_loss", loss, train_log_idx)
-                train_log_idx += 1
-                loss.backward()
+    model.train()
+    train_losses = []
+    for r, d, m, t, label in tqdm(train_loader):
+        try:
+            optimizer.zero_grad()
+            train_output, input_representation = model(r, d, m, t)
+            loss = criterion(train_output, input_representation) ** 0.5
+            writer.add_scalar("Train/train_loss", loss, train_log_idx)
+            train_log_idx += 1
+            loss.backward()
 
-                # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-                optimizer.step()
-                train_losses.append(loss.item())
-            except Exception as e:
-                print(e)
-                continue
-
-        val_losses = []
-        model.eval()
-        with torch.no_grad():
-            for r, d, m, t, label in tqdm(valid_loader):
-                try:
-                    valid_output, input_representation = model(r, d, m, t)
-                    loss = criterion(valid_output, input_representation)
-                    writer.add_scalar("Train/valid_loss", loss, valid_log_idx)
-                    valid_log_idx += 1
-                    val_losses.append(loss.item())
-                except Exception as e:
-                    pass
-
-        train_loss = np.mean(train_losses)
-        val_loss = np.mean(val_losses)
-        print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss}')
-
-    return model.eval()
+            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            optimizer.step()
+            train_losses.append(loss.item())
+        except Exception as e:
+            print(e)
+            continue
 
 
-def evaluate(model, args, test_loader, valid_loader, writer):
+    return np.mean(train_losses), train_log_idx
+
+
+def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx):
     model = model.to(args.device_id)
-    model.args.batch_size = 1
-    model.multisensory_fusion.batch_size = 1
-
     model.eval()
-    predictions, losses = [], []
     criterion = nn.MSELoss().to(args.device_id)
+    # criterion = nn.CrossEntropyLoss().to(args.device_id)
+
+    losses = []
     labels = []
+
     val_losses = []
     normal_losses = []
     abnormal_losses = []
-    eval_valid_log_idx = 0
-    eval_test_log_idx = 0
 
     with torch.no_grad():
         for r, d, m, t, label in tqdm(valid_loader):
             try:
                 valid_output, input_representation = model(r, d, m, t)
-                loss = criterion(valid_output, input_representation)
+                loss = criterion(valid_output, input_representation) ** 0.5
+                writer.add_scalar("Train/valid_loss", loss, valid_log_idx)
+                valid_log_idx += 1
                 val_losses.append(loss.item())
             except Exception as e:
                 pass
@@ -120,25 +101,31 @@ def evaluate(model, args, test_loader, valid_loader, writer):
         for r, d, m, t, label in tqdm(test_loader):
             try:
                 test_output, input_representation = model(r, d, m, t)
-                loss = criterion(test_output, input_representation)
-                predictions.append(test_output.cpu().numpy().flatten())
-                losses.append(loss.item())
-                labels.append(label)
-                if label[0].item() == 0:
-                    writer.add_scalar("Test/Normal_Loss", loss, eval_valid_log_idx)
-                    eval_valid_log_idx += 1
-                    normal_losses.append(loss.item())
-                else:
-                    writer.add_scalar("Test/Abnormal_Loss", loss, eval_test_log_idx)
-                    eval_test_log_idx += 1
-                    abnormal_losses.append(loss.item())
+                for test_o, test_i, test_label in zip(test_output, input_representation, label):
+                    loss = criterion(test_o, test_i) ** 0.5
+                    losses.append(loss.item())
+                    labels.append(test_label)
+                    if test_label.item() == 0:
+                        writer.add_scalar("Test/Normal_Loss", loss, eval_normal_log_idx)
+                        eval_normal_log_idx += 1
+                        normal_losses.append(loss.item())
+                    else:
+                        writer.add_scalar("Test/Abnormal_Loss", loss, eval_abnormal_log_idx)
+                        eval_abnormal_log_idx += 1
+                        abnormal_losses.append(loss.item())
             except Exception as e:
+                # print('test',e)
                 pass
-        print(f'Mean normal_losses {np.mean(normal_losses)}')
-        print(f'Mean abnormal_losses {np.mean(abnormal_losses)}')
-        base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(losses, val_losses, labels, writer)
-        print('base_f1scores, base_precisions, base_recalls', round(base_f1scores, 4), round(base_precisions, 4), round(base_recalls, 4))
-        return base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls, np.mean(normal_losses), np.mean(abnormal_losses)
+
+        base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(losses, val_losses, labels, writer, epoch)
+        writer.add_scalar("Performance/base_auroc", base_auroc, epoch)
+        writer.add_scalar("Performance/base_aupr", base_aupr, epoch)
+        writer.add_scalar("Performance/base_f1scores", base_f1scores, epoch)
+        writer.add_scalar("Performance/base_precisions", base_precisions, epoch)
+        writer.add_scalar("Performance/base_recalls", base_recalls, epoch)
+        writer.add_scalar("Performance/avg_normal_loss", np.mean(normal_losses), epoch)
+        writer.add_scalar("Performance/avg_abnormal_loss", np.mean(abnormal_losses), epoch)
+        return base_auroc, np.mean(val_losses), valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx
 
 
 
@@ -150,7 +137,7 @@ if __name__ == '__main__':
     args = get_config()
     ## For tensorboard
     now = datetime.now()
-    date_time = now.strftime("%Y-%m-%d-%H:%M:%S")
+    date_time = now.strftime("%m-%d-%H:%M:%S")
     log_name = date_time + '_' + args.sensor + '_' + args.dataset_file_name+'_'+args.log_memo
     logdir = 'log/' + log_name
     os.mkdir(logdir)
@@ -168,19 +155,18 @@ if __name__ == '__main__':
     model = model.to(args.device_id)
     print(model)
 
-    # train
-    train(model, args, train_loader, valid_loader, writer)
-    # test
-    base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls, avg_normal_loss, avg_abnormal_loss = evaluate(model, args, test_loader, valid_loader, writer)
+    train_log_idx = 0
+    valid_log_idx = 0
+    eval_normal_log_idx = 0
+    eval_abnormal_log_idx = 0
 
-    writer.add_scalar("Performance/base_auroc", base_auroc, 0)
-    writer.add_text("Performance/base_auroc", str(base_auroc))
-    writer.add_text("Performance/base_aupr", str(base_aupr))
-    writer.add_text("Performance/base_f1scores", str(base_f1scores))
-    writer.add_text("Performance/base_precisions", str(base_precisions))
-    writer.add_text("Performance/base_recalls", str(base_recalls))
-    writer.add_text("Performance/avg_normal_loss", str(avg_normal_loss))
-    writer.add_text("Performance/avg_abnormal_loss", str(avg_abnormal_loss))
+    for epoch in range(args.epochs):
+        # train
+        train_loss, train_log_idx = train(model, args, train_loader, writer, train_log_idx)
+        # test
+        base_auroc, val_loss, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx = evaluate(epoch,
+            model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx)
+        print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss} base_auroc {base_auroc}')
 
     writer.close()
 

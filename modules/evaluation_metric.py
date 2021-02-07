@@ -2,7 +2,7 @@ import numpy as np
 from sklearn import metrics
 import matplotlib.pyplot as plt
 
-def get_auc_roc(score, test_label, writer, nap=False):
+def get_auc_roc(score, test_label, writer, epoch, nap=False):
     try:
         fprs, tprs, threshold = metrics.roc_curve(test_label, score)
 
@@ -15,12 +15,12 @@ def get_auc_roc(score, test_label, writer, nap=False):
         plt.ylim([0, 1])
         plt.ylabel('True Positive Rate')
         plt.xlabel('False Positive Rate')
-        writer.add_figure("Performance/roc_curve", fig)
+        writer.add_figure("Performance/roc_curve", fig, epoch)
         return metrics.auc(fprs, tprs)
     except:
         return .0
 
-def get_auc_prc(score, test_label, writer):
+def get_auc_prc(score, test_label, writer, epoch):
     try:
         precisions, recalls, threshold = metrics.precision_recall_curve(test_label, score)
 
@@ -34,7 +34,7 @@ def get_auc_prc(score, test_label, writer):
         plt.ylim([0, 1])
         plt.ylabel('precisions')
         plt.xlabel('recalls')
-        writer.add_figure("Performance/precision-recall_curve", fig)
+        writer.add_figure("Performance/precision-recall_curve", fig, epoch)
         return metrics.auc(recalls, precisions)
     except:
         return .0
@@ -52,21 +52,19 @@ def get_f1_score(valid_score, test_score, test_label, f1_quantiles=[.90]):
     return f1s, threshold
 
 
-def get_recon_loss(test_losses, val_losses, labels, writer, f1_quantiles=[.90]):
-    labels = [i[0].item() for i in labels]
-    loss_auc_roc = get_auc_roc(test_losses, labels, writer)
-    print('AUROC',loss_auc_roc)
-    loss_auc_prc = get_auc_prc(test_losses, labels, writer)
-    print('AUPRC', loss_auc_prc)
+def get_recon_loss(test_losses, val_losses, labels, writer, epoch, f1_quantiles=[.90]):
+    labels = [i.item() for i in labels]
+    loss_auc_roc = get_auc_roc(test_losses, labels, writer, epoch)
+    loss_auc_prc = get_auc_prc(test_losses, labels, writer, epoch)
     loss_f1s, threshold = get_f1_score( val_losses,
                                         test_losses,
                                         labels,
                                         f1_quantiles=f1_quantiles)
-    precision, recall = get_confusion_matrix(test_losses, labels, threshold, writer)
+    precision, recall = get_confusion_matrix(test_losses, labels, threshold, writer, epoch)
     return loss_auc_roc, loss_auc_prc, loss_f1s, precision, recall
 
 
-def get_confusion_matrix(score, test_label, threshold, writer):
+def get_confusion_matrix(score, test_label, threshold, writer, epoch):
     score_label = []
     for i in score:
         if i >= threshold:
@@ -77,7 +75,7 @@ def get_confusion_matrix(score, test_label, threshold, writer):
     tn, fp, fn, tp = metrics.confusion_matrix(test_label, score_label).ravel()
     conf_matrix_str = 'Tn, Fp : '+str(tn)+', '+str(fp)+' / Fn, Tp : '+str(fn)+', '+str(tp)
     print('Tn, Fp : '+str(tn)+', '+str(fp)+'\nFn, Tp : '+str(fn)+', '+str(tp))
-    writer.add_text("Performance/confusion_matrix", conf_matrix_str)
+    writer.add_text("Performance/confusion_matrix", conf_matrix_str, epoch)
     precision = tp / (tp+fp)
     recall = tp / (tp+fn)
     return precision, recall

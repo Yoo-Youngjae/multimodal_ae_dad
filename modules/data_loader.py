@@ -30,10 +30,7 @@ class HsrDataset(Dataset):
         self.idxs = idxs
         self.dataframe = dataframe
 
-        if test:
-            self.batch_size = 1
-        else:
-            self.batch_size = args.batch_size
+        self.batch_size = args.batch_size
 
         self.unimodal = True
         self.All = False
@@ -182,7 +179,7 @@ def get_loaders(args):
 
     return DataLoader(trainset, batch_size=args.batch_size, num_workers=args.workers, shuffle=args.shuffle_batch), \
            DataLoader(validset, batch_size=args.batch_size, num_workers=args.workers,shuffle=args.shuffle_batch), \
-           DataLoader(testset, batch_size=1, num_workers=args.workers)
+           DataLoader(testset, batch_size=args.batch_size, num_workers=args.workers)
 
 def split_train_test(full_dataframe, args):
     # set to 0.3 seconds unit
