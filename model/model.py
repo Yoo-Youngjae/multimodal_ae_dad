@@ -61,13 +61,24 @@ class Encoder(nn.Module):
                              num_layers=1,
                              batch_first=use_batch_norm)
 
+        self.lstm = nn.LSTM(input_size=layer_sizes[0],
+                             hidden_size=layer_sizes[5],
+                             num_layers=5,
+                             batch_first=use_batch_norm)
+
     def forward(self, x):
         x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
+
+        # multi layer
         x, (_, _) = self.lstm1(x)
         x, (_, _) = self.lstm2(x)
         x, (_, _) = self.lstm3(x)
         x, (_, _) = self.lstm4(x)
         x, encoder_state = self.lstm5(x)
+
+        # single function
+        # x, encoder_state = self.lstm(x)
+
         # x.shape : torch.Size([64, 3, 32])
         # hidden_n.shape : torch.Size([1, 3, 32])
         # self.n_features : 64
@@ -86,7 +97,7 @@ class Decoder(nn.Module):
         hidden_sizes = get_hidden_layer_sizes(input_dim, n_features, args.n_layer-1)
         layer_sizes = [input_dim] + hidden_sizes + [n_features]
         self.input_dim = input_dim
-        self.hidden_dim =  layer_sizes[4]
+        self.hidden_dim = layer_sizes[4]
 
         self.lstm1 = nn.LSTM(input_size=layer_sizes[0],
                              hidden_size=layer_sizes[0],
@@ -113,6 +124,11 @@ class Decoder(nn.Module):
                              num_layers=1,
                              batch_first=use_batch_norm)
 
+        self.lstm = nn.LSTM(input_size=layer_sizes[0],
+                             hidden_size=layer_sizes[4],
+                             num_layers=5,
+                             batch_first=use_batch_norm)
+
         self.output_layer = nn.Linear(layer_sizes[4], layer_sizes[5])
 
 
@@ -122,10 +138,16 @@ class Decoder(nn.Module):
         # x = x.repeat(self.args.batch_size, 1,  1)
         x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
 
-        x, (hidden_n, _) = self.lstm1(x, encoder_state)
+        # Multi layer
+        x, (hidden_n, _) = self.lstm1(x, encoder_state) # encoder_state
         x, (hidden_n, _) = self.lstm2(x)
         x, (hidden_n, _) = self.lstm3(x)
         x, (hidden_n, _) = self.lstm4(x)
         x, (hidden_n, _) = self.lstm5(x)
+
+
+        # Single function
+        # x, (hidden_n, _) = self.lstm(x)
+
         x = x.reshape((self.args.batch_size, self.seq_len, self.hidden_dim))
         return self.output_layer(x)

@@ -28,9 +28,9 @@ class Multisensory_Fusion(nn.Module): # nn.Module
         )
 
         # for Unimodal
-        self.conv1r = nn.Conv2d(3, 8, kernel_size=2, stride=2).to(self.args.device_id)
-        self.conv2r = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id)
-        self.conv3r = nn.Conv2d(8, 8, kernel_size=2, stride=2).to(self.args.device_id),
+        # self.conv1r = nn.Conv2d(3, 8, kernel_size=2, stride=2).to(self.args.device_id)
+        # self.conv2r = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id)
+        # self.conv3r = nn.Conv2d(8, 8, kernel_size=2, stride=2).to(self.args.device_id),
 
 
     def forward(self, r, d, m, t):
