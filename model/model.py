@@ -3,6 +3,7 @@ import torch.nn as nn
 from modules.utils import get_hidden_layer_sizes
 from modules.Multisensory_Fusion import Multisensory_Fusion
 
+
 # https://github.com/curiousily/Getting-Things-Done-with-Pytorch/blob/master/06.time-series-anomaly-detection-ecg.ipynb
 
 class LSTM_AE(nn.Module):
@@ -151,3 +152,146 @@ class Decoder(nn.Module):
 
         x = x.reshape((self.args.batch_size, self.seq_len, self.hidden_dim))
         return self.output_layer(x)
+
+
+class DNN_AE(nn.Module):
+
+    def __init__(self, args, seq_len, n_features, embedding_dim=64):
+        super(DNN_AE, self).__init__()
+        self.args = args
+        self.multisensory_fusion = Multisensory_Fusion(args)
+        n_features = n_features * 3
+        self.encoder = DNN_Encoder(seq_len, args, n_features, embedding_dim).to(args.device_id)
+        self.decoder = DNN_Decoder(seq_len, args, embedding_dim, n_features).to(args.device_id)
+
+    def forward(self, r, d, m, t):
+        input_representation = self.multisensory_fusion(r, d, m, t)
+        input_representation = input_representation.to(self.args.device_id)
+        x = self.encoder(input_representation)
+        x = self.decoder(x)
+        return x, input_representation.reshape((self.args.batch_size, -1))
+
+
+class DNN_Encoder(nn.Module):
+    def __init__(self, seq_len, args, n_features, embedding_dim=16):
+        super(DNN_Encoder, self).__init__()
+        self.args = args
+        self.seq_len = seq_len
+        self.n_features = n_features
+        self.embedding_dim = embedding_dim
+
+        use_batch_norm = False
+
+        hidden_sizes = get_hidden_layer_sizes(n_features, embedding_dim, args.n_layer-1)
+        self.layer_list = []
+        layer_sizes = [n_features] + hidden_sizes + [embedding_dim]
+        for idx, (in_size, out_size) in enumerate(zip(layer_sizes[:-1], layer_sizes[1:])):
+            if idx < len(hidden_sizes):
+                layer = FCLayer(input_size=in_size,
+                                output_size=out_size,
+                                act='leakyrelu',
+                                bn=use_batch_norm,
+                                dropout_p=0
+                                )
+            else:
+                layer = FCLayer(input_size=in_size,
+                                output_size=out_size,
+                                act=None,
+                                )
+            self.layer_list.append(layer)
+        self.net = nn.Sequential(*self.layer_list)
+
+    def forward(self, x):
+        # x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
+        x = x.reshape((self.args.batch_size, -1))
+        return self.net(x)
+
+class DNN_Decoder(nn.Module):
+
+    def __init__(self, seq_len, args, input_dim=16, n_features=1):
+        super(DNN_Decoder, self).__init__()
+        self.args = args
+        self.seq_len = seq_len
+        self.n_features = n_features
+        self.input_dim = input_dim
+        use_batch_norm = False
+
+        hidden_sizes = get_hidden_layer_sizes(n_features, n_features, args.n_layer - 1)
+        self.layer_list = []
+        layer_sizes = [input_dim] + hidden_sizes + [n_features]
+        for idx, (in_size, out_size) in enumerate(zip(layer_sizes[:-1], layer_sizes[1:])):
+            if idx < len(hidden_sizes):
+                layer = FCLayer(input_size=in_size,
+                                output_size=out_size,
+                                act='leakyrelu',
+                                bn=use_batch_norm,
+                                dropout_p=0
+                                )
+            else:
+                layer = FCLayer(input_size=in_size,
+                                output_size=out_size,
+                                act=None,
+                                )
+            self.layer_list.append(layer)
+        self.net = nn.Sequential(*self.layer_list)
+
+    def forward(self, x):
+        # x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
+        x = x.reshape((self.args.batch_size, -1))
+        return self.net(x)
+
+
+class FCLayer(nn.Module):
+    def __init__(self,
+                 input_size,
+                 output_size=1,
+                 bias=True,
+                 act='relu',
+                 bn=False,
+                 dropout_p=0):
+        super().__init__()
+        self.layer = nn.Linear(input_size, output_size, bias)
+        self.bn = nn.BatchNorm1d(output_size) if bn else None
+        self.dropout = nn.Dropout(dropout_p) if dropout_p else None
+        self.act = Activation(act) if act else None
+
+    def forward(self, x):
+        y = self.act(self.layer(x)) if self.act else self.layer(x)
+        if self.bn:
+            # In case of expansion(k) in Information bottleneck
+            if y.dim() > 2:
+                original_y_size = y.size()
+                y = self.bn(y.view(-1, y.size(-1))).view(*original_y_size)
+            else:
+                y = self.bn(y)
+        y = self.dropout(y) if self.dropout else y
+
+        return y
+
+
+class Activation(nn.Module):
+
+    def __init__(self, act):
+        super().__init__()
+
+        if act == 'sigmoid':
+            self.act = nn.Sigmoid()
+        elif act == 'logsigmoid':
+            self.act = nn.LogSigmoid()
+        elif act == 'softmax':
+            self.act = nn.Softmax(dim=-1)
+        elif act == 'logsoftmax':
+            self.act = nn.LogSoftmax(dim=-1)
+        elif act == 'tanh':
+            self.act = nn.Tanh()
+        elif act == 'relu':
+            self.act = nn.ReLU()
+        elif act == 'leakyrelu':
+            self.act = nn.LeakyReLU(.2)
+        else:
+            self.act = None
+
+    def forward(self, x):
+        if self.act is not None:
+            return self.act(x)
+        return x

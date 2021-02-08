@@ -12,7 +12,7 @@ import os
 
 def get_n_features(sensor):
     if sensor == 'All':
-        val = 8 * 8 * 8 # 1000 + 1000 + 64 + 64
+        val = 8 * 8 * 32
         return val
     elif sensor == 'hand_camera':
         return 512     # 1024
@@ -38,7 +38,6 @@ class HsrDataset(Dataset):
         self.mic = False
         self.hand_camera = False
         self.head_depth = False
-        self.compose = transforms.Compose([transforms.Resize((32, 24))])  # (49, 49)
 
         if args.sensor == 'All':
             self.All = True
@@ -67,15 +66,15 @@ class HsrDataset(Dataset):
         label = cur_rows['label'].tolist()
 
         # [ 0, 0, 1], [0, 1, 1], [1, 1, 1] is abnormal
-        if 1 in label:
+        if 1 in label:  # 1 == positive
             label = 1
-        else:
+        else:           # 0 == negative
             label = 0
 
         if self.force_torque or self.All:
             hand_weight_series = cur_rows['cur_hand_weight']
             t = hand_weight_series.to_numpy()
-            t = t.astype(np.float32)    # t = torch.from_numpy(t.astype(np.float32))
+            t = torch.from_numpy(t.astype(np.float32))    # t = torch.from_numpy(t.astype(np.float32))
         if self.mic or self.All:
             mic_df = cur_rows['mfcc00']
             for i in range(1, 16):
@@ -84,7 +83,7 @@ class HsrDataset(Dataset):
                 else:
                     mic_df = pd.concat([mic_df, cur_rows['mfcc' + str(i)]], axis=1)
             m = mic_df.to_numpy()
-            m = m.astype(np.float32)    # m = torch.from_numpy(m.astype(np.float32))
+            m = torch.from_numpy(m.astype(np.float32))    # m = torch.from_numpy(m.astype(np.float32))
         if self.All:
             data_dirs = cur_rows['data_dir']
             r_img_dirs = cur_rows['cur_hand_id']

@@ -21,7 +21,7 @@ def get_config():
     parser.add_argument('--batch_size', type=int, default=32, help='batch_size') # 64
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
-    parser.add_argument('--lr_alpha', type=float, metavar='M', default=0.0005,
+    parser.add_argument('--lr_alpha', type=float, metavar='M', default=0.001,
                         help='initial learning rate (default: 5e-4)')
     parser.add_argument('--lr_beta', type=float, nargs='+', default=[0.9, 0.999],
                         help='exponential decay for momentum estimates (default: 0.9, 0.999)')
@@ -43,7 +43,7 @@ def get_config():
     parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="lstm_multilayer_relu_adam_from_gqn_Leaky_relu")
+    parser.add_argument('--log_memo', type=str, default="NEW_MulFu_LSTM")
 
     args = parser.parse_args()
 
@@ -60,21 +60,21 @@ def train(model, args, train_loader, writer, train_log_idx):
     model.train()
     train_losses = []
     for r, d, m, t, label in tqdm(train_loader):
-        try:
-            optimizer.zero_grad()
-            train_output, input_representation = model(r, d, m, t)
-            loss = criterion(train_output, input_representation) ** 0.5
-            writer.add_scalar("Train/train_loss", loss, train_log_idx)
-            train_log_idx += 1
-            loss.backward()
+        # try:
+        optimizer.zero_grad()
+        train_output, input_representation = model(r, d, m, t)
+        loss = criterion(train_output, input_representation) # ** 0.5
+        writer.add_scalar("Train/train_loss", loss, train_log_idx)
+        train_log_idx += 1
+        loss.backward()
 
-            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            optimizer.step()
-            train_losses.append(loss.item())
-        except Exception as e:
-            print(e)
-            continue
+        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        optimizer.step()
+        train_losses.append(loss.item())
+        # except Exception as e:
+        #     print(e)
+        #     continue
 
 
     return np.mean(train_losses), train_log_idx
@@ -97,7 +97,7 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
         for r, d, m, t, label in tqdm(valid_loader):
             try:
                 valid_output, input_representation = model(r, d, m, t)
-                loss = criterion(valid_output, input_representation) ** 0.5
+                loss = criterion(valid_output, input_representation) # ** 0.5
                 writer.add_scalar("Train/valid_loss", loss, valid_log_idx)
                 valid_log_idx += 1
                 val_losses.append(loss.item())
@@ -108,7 +108,7 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
             try:
                 test_output, input_representation = model(r, d, m, t)
                 for test_o, test_i, test_label in zip(test_output, input_representation, label):
-                    loss = criterion(test_o, test_i) ** 0.5
+                    loss = criterion(test_o, test_i) # ** 0.5
                     losses.append(loss.item())
                     labels.append(test_label)
                     if test_label.item() == 0:
@@ -148,6 +148,7 @@ if __name__ == '__main__':
     logdir = 'log/' + log_name
     os.mkdir(logdir)
     writer = SummaryWriter(log_dir=logdir)
+    print(log_name, 'start!')
 
 
     train_loader, valid_loader, test_loader = get_loaders(args)
@@ -156,8 +157,11 @@ if __name__ == '__main__':
     args.n_features = get_n_features(args.sensor)
     n_features = args.n_features
     embedding_dim = args.embedding_dim
-
-    model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
+    lstm = True
+    if lstm:
+        model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
+    else:
+        model = model.DNN_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
     model = model.to(args.device_id)
     print(model)
 

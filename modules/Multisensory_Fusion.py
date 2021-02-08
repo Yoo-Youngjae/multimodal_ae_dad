@@ -14,18 +14,32 @@ class Multisensory_Fusion(nn.Module): # nn.Module
 
         # for Multimodal
         self.layer1 = nn.Sequential(
-            nn.Conv2d(4, 8, kernel_size=2, stride=2).to(self.args.device_id),
+            # 4 x 32 x 32
+            nn.Conv2d(4, 64, kernel_size=2, stride=2),
+            # 64 x 16 x 16
             nn.LeakyReLU(),
-            nn.BatchNorm2d(8),
-        )
+            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            # 32 x 16 x 16
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(32)
+        ).to(self.args.device_id)
+
         self.layer2 = nn.Sequential(
-            nn.Conv2d(10, 8, kernel_size=3, stride=1, padding=1).to(self.args.device_id),
-            nn.LeakyReLU(),     # im.shape == 3, 8, 16, 16
-            nn.BatchNorm2d(8),
-            nn.Conv2d(8, 8, kernel_size=2, stride=2).to(self.args.device_id),
+            # 34 x 16 x 16
+            nn.Conv2d(34, 32, kernel_size=3, stride=1, padding=1),
+            # 32 x 16 x 16
             nn.LeakyReLU(),
-            nn.BatchNorm2d(8),  # im.shape == 3, 8, 8, 8
-        )
+            nn.BatchNorm2d(32),
+        ).to(self.args.device_id)
+
+        self.layer3 = nn.Sequential(
+            # 32 x 16 x 16
+            nn.Conv2d(32, 32, kernel_size=2, stride=2),
+            # 32 x 8 x 8
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(32),
+        ).to(self.args.device_id)
 
         # for Unimodal
         # self.conv1r = nn.Conv2d(3, 8, kernel_size=2, stride=2).to(self.args.device_id)
@@ -35,14 +49,15 @@ class Multisensory_Fusion(nn.Module): # nn.Module
 
     def forward(self, r, d, m, t):
         # batch normalization
-        r = self.norm_vec(r, range_in=[0, 255])
-        d = self.norm_vec(d, range_in=[0, 255])
-        m = self.norm_vec(m)
-        t = self.norm_vec(t)
-
         if self.args.sensor == 'All':
+            r = self.norm_vec(r, range_in=[0, 255])
+            d = self.norm_vec(d, range_in=[0, 255])
+            m = self.norm_vec(m)
+            t = self.norm_vec(t)
             im = torch.cat((r, d), 2)
             im = im.to(self.args.device_id)
+        elif self.args.sensor == 'force_torque':
+            t = self.norm_vec(t)
 
         # r[i] :   torch.Size([3, 3, 32, 32])
         # d[i] :   torch.Size([3, 1, 32, 32])
@@ -93,13 +108,15 @@ class Multisensory_Fusion(nn.Module): # nn.Module
                 # im[i].shape == 3, 4, 32, 32
                 # batch norm
                 imim = self.layer1(im[i])
-                # imim.shape == 3, 8, 16, 16
+                # imim.shape == 3, 32, 16, 16
                 multimodal = torch.cat((imim, tt, mm), 1)
-                # im.shape == 3, 10, 16, 16
-                multimodal = self.layer2(multimodal)
-                # im.shape == 3, 8, 8, 8
+                # multimodal.shape == 3, 34, 16, 16
+                multimodal = self.layer2(multimodal) + imim
+                # multimodal.shape == 3, 32, 16, 16
+                multimodal = self.layer3(multimodal)
+                # multimodal.shape == 3, 32, 8, 8
                 result = multimodal.unsqueeze(0)
-                # result.shape == 1, 3, 8, 8, 8
+                # result.shape == 1, 3, 32, 8, 8
             out = torch.cat((out, result), 0)
 
         out = out.view(self.batch_size, self.args.seq_len, self.args.n_features)
