@@ -50,10 +50,10 @@ class Multisensory_Fusion(nn.Module): # nn.Module
     def forward(self, r, d, m, t):
         # batch normalization
         if self.args.sensor == 'All':
-            r = self.norm_vec(r, range_in=[0, 255])
-            d = self.norm_vec(d, range_in=[0, 255])
-            m = self.norm_vec(m)
-            t = self.norm_vec(t)
+            # r = self.norm_vec(r, range_in=[0, 255])
+            # d = self.norm_vec(d, range_in=[0, 255])
+            # m = self.norm_vec(m)
+            # t = self.norm_vec(t)
             im = torch.cat((r, d), 2)
             im = im.to(self.args.device_id)
         elif self.args.sensor == 'force_torque':

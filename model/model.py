@@ -1,5 +1,5 @@
 import torch.nn as nn
-
+import torch
 from modules.utils import get_hidden_layer_sizes
 from modules.Multisensory_Fusion import Multisensory_Fusion
 

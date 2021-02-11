@@ -29,7 +29,7 @@ def get_config():
     parser.add_argument('--clip', type=float, default=10, help='gradient clipping')
     parser.add_argument('--device_id', type=int, default=0, help='device id(default : 0)')
 
-    parser.add_argument('--shuffle_batch', action='store_true', default=True)
+    parser.add_argument('--shuffle_batch', action='store_true', default=False)
     parser.add_argument('--workers', type=int, default=4, help='number of workers')
     parser.add_argument('--seq_len', type=int, default=3, help='sequence length')
     parser.add_argument('--n_features', type=int, default=512, help='number of features')
@@ -43,7 +43,7 @@ def get_config():
     parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="NEW_MulFu_LSTM")
+    parser.add_argument('--log_memo', type=str, default="NEW_MulFu_LSTM_L1Loss_thres_93_no_norm_vec")
 
     args = parser.parse_args()
 
@@ -54,27 +54,28 @@ def train(model, args, train_loader, writer, train_log_idx):
     # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     optimizer = optim.Adam(model.parameters(), lr=args.lr_alpha, betas=args.lr_beta, eps=1e-08,
                                  weight_decay=0, amsgrad=False)
-
-    criterion = nn.MSELoss().to(args.device_id)
+    # https://pytorch.org/docs/stable/nn.html#loss-functions
+    # criterion = nn.MSELoss().to(args.device_id)
+    criterion = nn.L1Loss().to(args.device_id)
 
     model.train()
     train_losses = []
     for r, d, m, t, label in tqdm(train_loader):
-        # try:
-        optimizer.zero_grad()
-        train_output, input_representation = model(r, d, m, t)
-        loss = criterion(train_output, input_representation) # ** 0.5
-        writer.add_scalar("Train/train_loss", loss, train_log_idx)
-        train_log_idx += 1
-        loss.backward()
+        try:
+            optimizer.zero_grad()
+            train_output, input_representation = model(r, d, m, t)
+            loss = criterion(train_output, input_representation) # ** 0.5
+            writer.add_scalar("Train/train_loss", loss, train_log_idx)
+            train_log_idx += 1
+            loss.backward()
 
-        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-        optimizer.step()
-        train_losses.append(loss.item())
-        # except Exception as e:
-        #     print(e)
-        #     continue
+            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            optimizer.step()
+            train_losses.append(loss.item())
+        except Exception as e:
+            print(e)
+            continue
 
 
     return np.mean(train_losses), train_log_idx
@@ -83,8 +84,8 @@ def train(model, args, train_loader, writer, train_log_idx):
 def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx):
     model = model.to(args.device_id)
     model.eval()
-    criterion = nn.MSELoss().to(args.device_id)
-    # criterion = nn.CrossEntropyLoss().to(args.device_id)
+    # criterion = nn.MSELoss().to(args.device_id)
+    criterion = nn.L1Loss().to(args.device_id)
 
     losses = []
     labels = []

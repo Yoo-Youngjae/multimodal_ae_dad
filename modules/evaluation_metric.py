@@ -52,8 +52,14 @@ def get_f1_score(valid_score, test_score, test_label, f1_quantiles=[.90]):
     return f1s, threshold
 
 
-def get_recon_loss(test_losses, val_losses, labels, writer, epoch, f1_quantiles=[.90]):
-    labels = [i.item() for i in labels]
+def get_recon_loss(test_losses, val_losses, labels, writer, epoch, f1_quantiles=[.93]):
+    _labels = []
+    for i in labels:
+        if i.item() == 0:
+            _labels.append(False)
+        else:
+            _labels.append(True)
+    labels = _labels
     loss_auc_roc = get_auc_roc(test_losses, labels, writer, epoch)
     loss_auc_prc = get_auc_prc(test_losses, labels, writer, epoch)
     loss_f1s, threshold = get_f1_score( val_losses,
@@ -68,9 +74,9 @@ def get_confusion_matrix(score, test_label, threshold, writer, epoch):
     score_label = []
     for i in score:
         if i >= threshold:
-            score_label.append(1)   # positive
+            score_label.append(True)   # positive
         else:
-            score_label.append(0)   # negative
+            score_label.append(False)   # negative
 
     tn, fp, fn, tp = metrics.confusion_matrix(test_label, score_label).ravel()
     conf_matrix_str = 'Tn, Fp : '+str(tn)+', '+str(fp)+' / Fn, Tp : '+str(fn)+', '+str(tp)
