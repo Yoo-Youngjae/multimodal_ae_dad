@@ -52,7 +52,7 @@ def get_f1_score(valid_score, test_score, test_label, f1_quantiles=[.90]):
     return f1s, threshold
 
 
-def get_recon_loss(test_losses, val_losses, labels, writer, epoch, f1_quantiles=[.93]):
+def get_recon_loss(test_losses, val_losses, labels, writer, epoch, f1_quantiles=[.90]):
     _labels = []
     for i in labels:
         if i.item() == 0:

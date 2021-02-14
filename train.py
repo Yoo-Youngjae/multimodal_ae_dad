@@ -39,12 +39,12 @@ def get_config():
     parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
 
     parser.add_argument('--embedding_dim', type=int, default=512, help='embedding dimension')  # 32, 128, 512
-    parser.add_argument('--batch_size', type=int, default=64, help='batch_size')  # 64
+    parser.add_argument('--batch_size', type=int, default=128, help='batch_size')  # 64
     parser.add_argument('--shuffle_batch', action='store_true', default=True)
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="Batch_64_MSELoss_reductionsum_embedding_dim_512")
+    parser.add_argument('--log_memo', type=str, default="Batch_128_MSELoss_reduction_sum_f1_quantiles_90")
 
     args = parser.parse_args()
 
@@ -65,7 +65,7 @@ def train(model, args, train_loader, writer, train_log_idx):
         try:
             optimizer.zero_grad()
             train_output, input_representation = model(r, d, m, t)
-            loss = criterion(train_output, input_representation) # ** 0.5
+            loss = criterion(train_output, input_representation)
             writer.add_scalar("Train/train_loss", loss, train_log_idx)
             train_log_idx += 1
             loss.backward()
@@ -95,14 +95,25 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
     normal_losses = []
     abnormal_losses = []
 
+
+
     with torch.no_grad():
         for r, d, m, t, label in tqdm(valid_loader):
             try:
                 valid_output, input_representation = model(r, d, m, t)
-                loss = criterion(valid_output, input_representation) # ** 0.5
+                loss = criterion(valid_output, input_representation)
                 writer.add_scalar("Train/valid_loss", loss, valid_log_idx)
                 valid_log_idx += 1
                 val_losses.append(loss.item())
+            except Exception as e:
+                pass
+        eval_losses = []
+        for r, d, m, t, label in tqdm(valid_loader):
+            try:
+                valid_output, input_representation = model(r, d, m, t)
+                for val_o, val_i, val_label in zip(valid_output, input_representation, label):
+                    loss = criterion(val_o, val_i)
+                    eval_losses.append(loss.item())
             except Exception as e:
                 pass
 
@@ -110,7 +121,7 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
             try:
                 test_output, input_representation = model(r, d, m, t)
                 for test_o, test_i, test_label in zip(test_output, input_representation, label):
-                    loss = criterion(test_o, test_i) # ** 0.5
+                    loss = criterion(test_o, test_i)
                     losses.append(loss.item())
                     labels.append(test_label)
                     if test_label.item() == 0:
@@ -125,7 +136,7 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
                 # print('test',e)
                 pass
 
-        base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(losses, val_losses, labels, writer, epoch)
+        base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(losses, eval_losses, labels, writer, epoch)
         writer.add_scalar("Performance/base_auroc", base_auroc, epoch)
         writer.add_scalar("Performance/base_aupr", base_aupr, epoch)
         writer.add_scalar("Performance/base_f1scores", base_f1scores, epoch)
@@ -135,6 +146,16 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
         writer.add_scalar("Performance/avg_abnormal_loss", np.mean(abnormal_losses), epoch)
         return base_auroc, np.mean(val_losses), valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx
 
+def set_best_model(args, val_loss, best_val_loss, best_model, model):
+    from copy import deepcopy
+    if best_val_loss is None:
+        best_val_loss = val_loss
+        best_model = deepcopy(model.state_dict())
+    elif val_loss < best_val_loss:
+        best_val_loss = val_loss
+        best_model = deepcopy(model.state_dict())
+
+    return best_val_loss, best_model
 
 
 if __name__ == '__main__':
@@ -171,6 +192,8 @@ if __name__ == '__main__':
     valid_log_idx = 0
     eval_normal_log_idx = 0
     eval_abnormal_log_idx = 0
+    best_model = None
+    best_val_loss = None
 
     for epoch in range(args.epochs):
         # train
@@ -178,6 +201,9 @@ if __name__ == '__main__':
         # test
         base_auroc, val_loss, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx = evaluate(epoch,
             model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx)
+        # set best model
+        best_val_loss, best_model = set_best_model(args, val_loss, best_val_loss, best_model, model)
+        model.load_state_dict(best_model)
         print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss} base_auroc {base_auroc}')
 
     writer.close()

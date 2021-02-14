@@ -23,6 +23,7 @@ class LSTM_AE(nn.Module):
         return x, input_representation
 
 
+
 class Encoder(nn.Module):
     def __init__(self, seq_len, args, n_features, embedding_dim=16):
         super(Encoder, self).__init__()
@@ -152,6 +153,9 @@ class Decoder(nn.Module):
 
         x = x.reshape((self.args.batch_size, self.seq_len, self.hidden_dim))
         return self.output_layer(x)
+
+
+
 
 
 class DNN_AE(nn.Module):

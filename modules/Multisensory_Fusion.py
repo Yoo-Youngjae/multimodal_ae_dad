@@ -1,5 +1,6 @@
 from torch import nn
 import torch
+import numpy as np
 import torch.nn.functional as F
 from torchvision.transforms import Normalize
 
@@ -133,3 +134,15 @@ class Multisensory_Fusion(nn.Module): # nn.Module
         r_in = range_in[1] - range_in[0]
         v = (r_out * (v - range_in[0]) / r_in) + range_out[0]
         return v
+
+
+def norm_vec_np(v, range_in=None, range_out=None):
+    if range_out is None:
+        range_out = [0.0, 1.0]
+    if range_in is None:
+        range_in = [np.min(v,0), np.max(v,0)]
+    r_out = range_out[1] - range_out[0]
+    r_in = range_in[1] - range_in[0]
+    v = (r_out * (v - range_in[0]) / r_in) + range_out[0]
+    v = np.nan_to_num(v, nan=0.0)
+    return v
