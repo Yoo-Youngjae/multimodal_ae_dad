@@ -206,18 +206,18 @@ def split_train_test(full_dataframe, args):
         torch.save(abnormal_idx, abnormal_idx_dir)
 
     train_valid_test_ratio = [0.6, 0.2, 0.2]
-    train_valid_size = [int(train_valid_test_ratio[0] * data_len), int(train_valid_test_ratio[1] * data_len)]
+    train_valid_size = [int(train_valid_test_ratio[0] * len(normal_idx)), int(train_valid_test_ratio[1] * len(normal_idx))]
 
     trainset_idxs = normal_idx[:train_valid_size[0]]
     validset_idxs = normal_idx[train_valid_size[0]:train_valid_size[0] + train_valid_size[1]]
     testset_idxs = normal_idx[train_valid_size[0] + train_valid_size[1]:]
 
-
-    # train 30800
+    # normal_idx = 50082
+    # train 30049
     trainset = HsrDataset(args, trainset_idxs, full_dataframe)
-    # valid 10200
+    # valid 10016
     validset = HsrDataset(args, validset_idxs, full_dataframe)
-    # test 15000
+    # test 10017 + 4800 = 14817
     testset = HsrDataset(args, testset_idxs+abnormal_idx, full_dataframe, test=True)
     return trainset, validset, testset
 

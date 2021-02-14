@@ -18,10 +18,9 @@ def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
     parser.add_argument('--epochs', type=int, default=100, help='upper epoch limit') # 30
-    parser.add_argument('--batch_size', type=int, default=32, help='batch_size') # 64
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
-    parser.add_argument('--lr_alpha', type=float, metavar='M', default=0.001,
+    parser.add_argument('--lr_alpha', type=float, metavar='M', default=0.0005,
                         help='initial learning rate (default: 5e-4)')
     parser.add_argument('--lr_beta', type=float, nargs='+', default=[0.9, 0.999],
                         help='exponential decay for momentum estimates (default: 0.9, 0.999)')
@@ -29,8 +28,7 @@ def get_config():
     parser.add_argument('--clip', type=float, default=10, help='gradient clipping')
     parser.add_argument('--device_id', type=int, default=0, help='device id(default : 0)')
 
-    parser.add_argument('--shuffle_batch', action='store_true', default=False)
-    parser.add_argument('--workers', type=int, default=4, help='number of workers')
+
     parser.add_argument('--seq_len', type=int, default=3, help='sequence length')
     parser.add_argument('--n_features', type=int, default=512, help='number of features')
     parser.add_argument('--n_layer', type=int, default=5, help='number of layer(encoder)')
@@ -38,12 +36,15 @@ def get_config():
     parser.add_argument('--dataset_file_path', type=str, default="dataset/")
     parser.add_argument('--object_select_mode', action='store_true', default=False)
     parser.add_argument('--object_type', type=str, default="bottle")
-    parser.add_argument('--embedding_dim', type=int, default=128, help='embedding dimension')  # 32, 128
-
     parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
 
+    parser.add_argument('--embedding_dim', type=int, default=512, help='embedding dimension')  # 32, 128, 512
+    parser.add_argument('--batch_size', type=int, default=64, help='batch_size')  # 64
+    parser.add_argument('--shuffle_batch', action='store_true', default=True)
+    parser.add_argument('--workers', type=int, default=8, help='number of workers')
+
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="NEW_MulFu_LSTM_L1Loss_thres_93_no_norm_vec")
+    parser.add_argument('--log_memo', type=str, default="Batch_64_MSELoss_reductionsum_embedding_dim_512")
 
     args = parser.parse_args()
 
@@ -54,9 +55,9 @@ def train(model, args, train_loader, writer, train_log_idx):
     # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     optimizer = optim.Adam(model.parameters(), lr=args.lr_alpha, betas=args.lr_beta, eps=1e-08,
                                  weight_decay=0, amsgrad=False)
-    # https://pytorch.org/docs/stable/nn.html#loss-functions
-    # criterion = nn.MSELoss().to(args.device_id)
-    criterion = nn.L1Loss().to(args.device_id)
+
+    criterion = nn.MSELoss(reduction='sum').to(args.device_id)
+    # criterion = nn.L1Loss().to(args.device_id)
 
     model.train()
     train_losses = []
@@ -84,8 +85,8 @@ def train(model, args, train_loader, writer, train_log_idx):
 def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx):
     model = model.to(args.device_id)
     model.eval()
-    # criterion = nn.MSELoss().to(args.device_id)
-    criterion = nn.L1Loss().to(args.device_id)
+    criterion = nn.MSELoss(reduction='sum').to(args.device_id)
+    # criterion = nn.L1Loss().to(args.device_id)
 
     losses = []
     labels = []
