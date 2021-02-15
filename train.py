@@ -18,7 +18,7 @@ from modules.utils import get_diffs
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
-    parser.add_argument('--epochs', type=int, default=100, help='upper epoch limit') # 30
+    parser.add_argument('--epochs', type=int, default=101, help='upper epoch limit') # 30
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
     parser.add_argument('--lr_alpha', type=float, metavar='M', default=0.0005,
@@ -45,7 +45,7 @@ def get_config():
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="Batch_128_nap_completed")
+    parser.add_argument('--log_memo', type=str, default="Batch_128_no_set_best_model")
 
     args = parser.parse_args()
 
@@ -279,8 +279,8 @@ if __name__ == '__main__':
         train_loss, val_loss, train_log_idx, valid_log_idx = train(model, args, train_loader, writer, train_log_idx, valid_log_idx)
 
         # # set best model
-        best_val_loss, best_model = set_best_model(args, val_loss, best_val_loss, best_model, model)
-        model.load_state_dict(best_model)
+        # best_val_loss, best_model = set_best_model(args, val_loss, best_val_loss, best_model, model)
+        # model.load_state_dict(best_model)
         print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss}')
 
         # evaluation
