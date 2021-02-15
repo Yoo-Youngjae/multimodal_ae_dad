@@ -45,7 +45,7 @@ def get_config():
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="Batch_128_f1_quantiles_80_train_valid_testidx_shuffle")
+    parser.add_argument('--log_memo', type=str, default="Batch_128_nap_completed")
 
     args = parser.parse_args()
 
@@ -78,7 +78,7 @@ def train(model, args, train_loader, writer, train_log_idx, valid_log_idx):
             optimizer.step()
             train_losses.append(loss.item())
         except Exception as e:
-            print(e)
+            # print(e)
             continue
 
     with torch.no_grad():
@@ -286,6 +286,7 @@ if __name__ == '__main__':
         # evaluation
         if epoch % 10 == 0:
             test(model, args, train_loader, valid_loader, test_loader,  writer, epoch)
+            torch.cuda.empty_cache()
 
         # test
         # base_auroc, val_loss, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx = evaluate(epoch,
