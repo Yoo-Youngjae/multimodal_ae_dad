@@ -285,7 +285,7 @@ if __name__ == '__main__':
 
         # evaluation
         if epoch % 10 == 0:
-            test(model, args, train_loader, valid_loader, test_loader,  writer, epoch)
+            test(model, args, train_loader, valid_loader, test_loader,  writer, epoch//10)
             torch.cuda.empty_cache()
 
         # test
