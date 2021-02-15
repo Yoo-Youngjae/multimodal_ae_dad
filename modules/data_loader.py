@@ -6,6 +6,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 import os
+import random
 
 
 
@@ -208,6 +209,8 @@ def split_train_test(full_dataframe, args):
     train_valid_test_ratio = [0.6, 0.2, 0.2]
     train_valid_size = [int(train_valid_test_ratio[0] * len(normal_idx)), int(train_valid_test_ratio[1] * len(normal_idx))]
 
+    random.shuffle(normal_idx)
+
     trainset_idxs = normal_idx[:train_valid_size[0]]
     validset_idxs = normal_idx[train_valid_size[0]:train_valid_size[0] + train_valid_size[1]]
     testset_idxs = normal_idx[train_valid_size[0] + train_valid_size[1]:]
@@ -284,16 +287,34 @@ def get_Dataframe(args):
         return pd.concat([hand_series, depth_series, data_dir, label_series], axis=1)
 
     ##########################################################################
+# for layer_wised diff
+def get_transformed_data(data_loader, model):
+    """
+    Multi indexing support
+    """
+    x = []
+    y = []
+    for r, d, m, t, _y in tqdm(data_loader):
+        try:
+            _x = model.fusion(r, d, m, t)
+            x.append(_x)
+            y.append(_y)
+        except Exception as e:
+            pass
 
+    if type(_x) == np.ndarray:
+        x = np.stack(x)
+    elif type(_x) == torch.Tensor:
+        x = torch.stack(x)
+    else:
+        raise NotImplementedError
 
+    if type(_y) == np.ndarray:
+        y = np.array(y)
+    elif type(_y) == torch.Tensor:
+        y = torch.stack(y)
 
-
-
-
-
-
-
-
+    return x, y
 
 
 

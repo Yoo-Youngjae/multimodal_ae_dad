@@ -15,12 +15,14 @@ class LSTM_AE(nn.Module):
         self.encoder = Encoder(seq_len, args, n_features, embedding_dim).to(args.device_id)
         self.decoder = Decoder(seq_len, args, embedding_dim, n_features).to(args.device_id)
 
-    def forward(self, r, d, m, t):
-        input_representation = self.multisensory_fusion(r, d, m, t)
+    def fusion(self, r, d, m, t):
+        return self.multisensory_fusion(r, d, m, t)
+
+    def forward(self, input_representation):
         input_representation = input_representation.to(self.args.device_id)
         x, encoder_state = self.encoder(input_representation)
         x = self.decoder(x, encoder_state)
-        return x, input_representation
+        return x
 
 
 
@@ -63,10 +65,10 @@ class Encoder(nn.Module):
                              num_layers=1,
                              batch_first=use_batch_norm)
 
-        self.lstm = nn.LSTM(input_size=layer_sizes[0],
-                             hidden_size=layer_sizes[5],
-                             num_layers=5,
-                             batch_first=use_batch_norm)
+        # self.lstm = nn.LSTM(input_size=layer_sizes[0],
+        #                      hidden_size=layer_sizes[5],
+        #                      num_layers=5,
+        #                      batch_first=use_batch_norm)
 
     def forward(self, x):
         x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
@@ -126,10 +128,10 @@ class Decoder(nn.Module):
                              num_layers=1,
                              batch_first=use_batch_norm)
 
-        self.lstm = nn.LSTM(input_size=layer_sizes[0],
-                             hidden_size=layer_sizes[4],
-                             num_layers=5,
-                             batch_first=use_batch_norm)
+        # self.lstm = nn.LSTM(input_size=layer_sizes[0],
+        #                      hidden_size=layer_sizes[4],
+        #                      num_layers=5,
+        #                      batch_first=use_batch_norm)
 
         self.output_layer = nn.Linear(layer_sizes[4], layer_sizes[5])
 

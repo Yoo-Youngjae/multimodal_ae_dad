@@ -8,8 +8,9 @@ from datetime import datetime
 import os
 from tqdm import tqdm
 
-from modules.data_loader import get_loaders, get_n_features
-from modules.evaluation_metric import get_recon_loss
+from modules.data_loader import get_loaders, get_n_features, get_transformed_data
+from modules.evaluation_metric import get_recon_loss, get_sap_loss, get_nap_loss
+from modules.utils import get_diffs
 
 
 
@@ -44,14 +45,14 @@ def get_config():
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="Batch_128_MSELoss_reduction_sum_f1_quantiles_90")
+    parser.add_argument('--log_memo', type=str, default="Batch_128_f1_quantiles_80_train_valid_testidx_shuffle")
 
     args = parser.parse_args()
 
     return args
 
 
-def train(model, args, train_loader, writer, train_log_idx):
+def train(model, args, train_loader, writer, train_log_idx, valid_log_idx):
     # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     optimizer = optim.Adam(model.parameters(), lr=args.lr_alpha, betas=args.lr_beta, eps=1e-08,
                                  weight_decay=0, amsgrad=False)
@@ -61,10 +62,12 @@ def train(model, args, train_loader, writer, train_log_idx):
 
     model.train()
     train_losses = []
+    val_losses = []
     for r, d, m, t, label in tqdm(train_loader):
         try:
             optimizer.zero_grad()
-            train_output, input_representation = model(r, d, m, t)
+            input_representation = model.fusion(r, d, m, t)
+            train_output = model(input_representation)
             loss = criterion(train_output, input_representation)
             writer.add_scalar("Train/train_loss", loss, train_log_idx)
             train_log_idx += 1
@@ -78,8 +81,20 @@ def train(model, args, train_loader, writer, train_log_idx):
             print(e)
             continue
 
+    with torch.no_grad():
+        for r, d, m, t, label in tqdm(valid_loader):
+            try:
+                input_representation = model.fusion(r, d, m, t)
+                valid_output = model(input_representation)
+                loss = criterion(valid_output, input_representation)
+                writer.add_scalar("Train/valid_loss", loss, valid_log_idx)
+                valid_log_idx += 1
+                val_losses.append(loss.item())
+            except Exception as e:
+                pass
 
-    return np.mean(train_losses), train_log_idx
+
+    return np.mean(train_losses), np.mean(val_losses), train_log_idx, valid_log_idx
 
 
 def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx):
@@ -100,7 +115,8 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
     with torch.no_grad():
         for r, d, m, t, label in tqdm(valid_loader):
             try:
-                valid_output, input_representation = model(r, d, m, t)
+                input_representation = model.fusion(r, d, m, t)
+                valid_output = model(input_representation)
                 loss = criterion(valid_output, input_representation)
                 writer.add_scalar("Train/valid_loss", loss, valid_log_idx)
                 valid_log_idx += 1
@@ -110,7 +126,8 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
         eval_losses = []
         for r, d, m, t, label in tqdm(valid_loader):
             try:
-                valid_output, input_representation = model(r, d, m, t)
+                input_representation = model.fusion(r, d, m, t)
+                valid_output = model(input_representation)
                 for val_o, val_i, val_label in zip(valid_output, input_representation, label):
                     loss = criterion(val_o, val_i)
                     eval_losses.append(loss.item())
@@ -119,7 +136,8 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
 
         for r, d, m, t, label in tqdm(test_loader):
             try:
-                test_output, input_representation = model(r, d, m, t)
+                input_representation = model.fusion(r, d, m, t)
+                test_output = model(input_representation)
                 for test_o, test_i, test_label in zip(test_output, input_representation, label):
                     loss = criterion(test_o, test_i)
                     losses.append(loss.item())
@@ -136,6 +154,7 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
                 # print('test',e)
                 pass
 
+
         base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(losses, eval_losses, labels, writer, epoch)
         writer.add_scalar("Performance/base_auroc", base_auroc, epoch)
         writer.add_scalar("Performance/base_aupr", base_aupr, epoch)
@@ -145,6 +164,66 @@ def evaluate(epoch, model, args, test_loader, valid_loader, writer, valid_log_id
         writer.add_scalar("Performance/avg_normal_loss", np.mean(normal_losses), epoch)
         writer.add_scalar("Performance/avg_abnormal_loss", np.mean(abnormal_losses), epoch)
         return base_auroc, np.mean(val_losses), valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx
+
+def test(model, args, train_loader, valid_loader, test_loader,  writer, epoch):
+    with torch.no_grad():
+        train_x, train_label = get_transformed_data(train_loader, model)
+        valid_x, valid_label = get_transformed_data(valid_loader, model)
+        test_x, _test_y = get_transformed_data(test_loader, model)
+
+        train_diff_on_layers = get_diffs(args, train_x, model)
+        valid_diff_on_layers = get_diffs(args, valid_x, model)
+        test_diff_on_layers = get_diffs(args, test_x, model)
+
+        _test_y = np.where(np.isin(_test_y, [1]), True, False).flatten()
+        base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(
+            test_diff_on_layers[0],
+            valid_diff_on_layers[0],
+            _test_y,
+            writer,
+            epoch)
+        _, sap_auroc, sap_aupr, sap_f1scores, sap_precisions, sap_recalls = get_sap_loss(
+            valid_diff_on_layers,
+            test_diff_on_layers,
+            _test_y,
+            writer,
+            epoch
+        )
+
+        score, nap_auroc, nap_aupr, nap_f1scores, nap_precisions, nap_recalls = get_nap_loss(
+            train_diff_on_layers,
+            valid_diff_on_layers,
+            test_diff_on_layers,
+            _test_y,
+            writer,
+            epoch,
+            gpu_id=args.device_id,
+            norm_type=2,
+        )
+
+    writer.add_scalar("Performance/base_auroc", base_auroc, epoch)
+    writer.add_scalar("Performance/base_aupr", base_aupr, epoch)
+    writer.add_scalar("Performance/base_f1scores", base_f1scores, epoch)
+    writer.add_scalar("Performance/base_precisions", base_precisions, epoch)
+    writer.add_scalar("Performance/base_recalls", base_recalls, epoch)
+
+    writer.add_scalar("Performance/sap_auroc", sap_auroc, epoch)
+    writer.add_scalar("Performance/sap_aupr", sap_aupr, epoch)
+    writer.add_scalar("Performance/sap_f1scores", sap_f1scores, epoch)
+    writer.add_scalar("Performance/sap_precisions", sap_precisions, epoch)
+    writer.add_scalar("Performance/sap_recalls", sap_recalls, epoch)
+
+    writer.add_scalar("Performance/nap_auroc", nap_auroc, epoch)
+    writer.add_scalar("Performance/nap_aupr", nap_aupr, epoch)
+    writer.add_scalar("Performance/nap_f1scores", nap_f1scores, epoch)
+    writer.add_scalar("Performance/nap_precisions", nap_precisions, epoch)
+    writer.add_scalar("Performance/nap_recalls", nap_recalls, epoch)
+
+
+    print('(base_auroc, base_aupr), (sap_auroc, sap_aupr), (nap_auroc, nap_aupr)',(base_auroc, base_aupr), (sap_auroc, sap_aupr), (nap_auroc, nap_aupr))
+    return (base_auroc, base_aupr), (sap_auroc, sap_aupr), (nap_auroc, nap_aupr)
+
+
 
 def set_best_model(args, val_loss, best_val_loss, best_model, model):
     from copy import deepcopy
@@ -197,14 +276,20 @@ if __name__ == '__main__':
 
     for epoch in range(args.epochs):
         # train
-        train_loss, train_log_idx = train(model, args, train_loader, writer, train_log_idx)
-        # test
-        base_auroc, val_loss, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx = evaluate(epoch,
-            model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx)
-        # set best model
+        train_loss, val_loss, train_log_idx, valid_log_idx = train(model, args, train_loader, writer, train_log_idx, valid_log_idx)
+
+        # # set best model
         best_val_loss, best_model = set_best_model(args, val_loss, best_val_loss, best_model, model)
         model.load_state_dict(best_model)
-        print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss} base_auroc {base_auroc}')
+        print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss}')
+
+        # evaluation
+        if epoch % 10 == 0:
+            test(model, args, train_loader, valid_loader, test_loader,  writer, epoch)
+
+        # test
+        # base_auroc, val_loss, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx = evaluate(epoch,
+        #     model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx)
 
     writer.close()
 
