@@ -47,6 +47,7 @@ def get_config():
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
     parser.add_argument('--log_memo', type=str, default="Batch_128_no_set_best_model")
 
+
     args = parser.parse_args()
 
     return args
@@ -176,18 +177,24 @@ def test(model, args, train_loader, valid_loader, test_loader,  writer, epoch):
         test_diff_on_layers = get_diffs(args, test_x, model)
 
         _test_y = np.where(np.isin(_test_y, [1]), True, False).flatten()
+
+        f1_quantiles=[.90]
+
         base_auroc, base_aupr, base_f1scores, base_precisions, base_recalls = get_recon_loss(
             test_diff_on_layers[0],
             valid_diff_on_layers[0],
             _test_y,
             writer,
-            epoch)
+            epoch,
+            f1_quantiles=f1_quantiles
+        )
         _, sap_auroc, sap_aupr, sap_f1scores, sap_precisions, sap_recalls = get_sap_loss(
             valid_diff_on_layers,
             test_diff_on_layers,
             _test_y,
             writer,
-            epoch
+            epoch,
+            f1_quantiles=f1_quantiles
         )
 
         score, nap_auroc, nap_aupr, nap_f1scores, nap_precisions, nap_recalls = get_nap_loss(
@@ -197,6 +204,7 @@ def test(model, args, train_loader, valid_loader, test_loader,  writer, epoch):
             _test_y,
             writer,
             epoch,
+            f1_quantiles=f1_quantiles,
             gpu_id=args.device_id,
             norm_type=2,
         )
