@@ -44,8 +44,8 @@ def get_config():
     parser.add_argument('--shuffle_batch', action='store_true', default=True)
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
-    parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="Batch_128_no_set_best_model")
+    parser.add_argument('--dataset_file_name', type=str, default="data_sum_free")   # data_sum, data_sum_free, data_sum_motion
+    parser.add_argument('--log_memo', type=str, default="Batch_128_best_f1score")
 
 
     args = parser.parse_args()

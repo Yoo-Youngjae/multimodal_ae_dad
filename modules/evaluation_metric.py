@@ -47,13 +47,19 @@ def get_auc_prc(score, test_label, writer=None, epoch=None, mode=None):
 
 def get_f1_score(valid_score, test_score, test_label, f1_quantiles):
 
-    threshold = np.quantile(valid_score, f1_quantiles)
-    # print('threshold', threshold)
-    predictions = test_score > threshold
-    p = (predictions & test_label).sum() / float(predictions.sum())
-    r = (predictions & test_label).sum() / float(sum(test_label)) #test_label.sum()
 
-    f1s = p * r * 2 / (p + r)
+    precisions, recalls, thresholds = metrics.precision_recall_curve(test_label, test_score)
+    f1_scores = 2 * recalls * precisions / (recalls + precisions)
+    threshold = thresholds[np.argmax(f1_scores)]
+    f1s = np.max(f1_scores)
+
+    # threshold = np.quantile(valid_score, f1_quantiles)
+    # predictions = test_score > threshold
+    # p = (predictions & test_label).sum() / float(predictions.sum())
+    # r = (predictions & test_label).sum() / float(sum(test_label)) #test_label.sum()
+    #
+    # f1s = p * r * 2 / (p + r)
+
 
     return f1s, threshold
 
