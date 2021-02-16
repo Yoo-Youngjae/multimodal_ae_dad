@@ -22,8 +22,8 @@ def get_auc_roc(score, test_label, writer=None, epoch=None, mode=None):
             plt.ylabel('True Positive Rate')
             plt.xlabel('False Positive Rate')
             writer.add_figure("Performance/roc_curve_"+mode, fig, epoch)
-            writer.add_text("ROC_curve/fprs"+mode, ', '.join(fprs), epoch)
-            writer.add_text("ROC_curve/tprs" + mode, ', '.join(tprs), epoch)
+            writer.add_text("ROC_curve/fprs" + mode, ' '.join([str(i) for i in fprs]), epoch)
+            writer.add_text("ROC_curve/tprs" + mode, ' '.join([str(i) for i in tprs]), epoch)
         return metrics.auc(fprs, tprs)
     except:
         return .0
