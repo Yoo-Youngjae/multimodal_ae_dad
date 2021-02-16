@@ -188,8 +188,8 @@ def split_train_test(full_dataframe, args):
     idxs = [[i, i+1, i+2] for i in range(data_len - 2)]
     normal_idx = []
     abnormal_idx = []
-    normal_idx_dir = args.dataset_file_path + args.dataset_file_name + '_normal_idx.pt'
-    abnormal_idx_dir = args.dataset_file_path + args.dataset_file_name + '_abnormal_idx.pt'
+    normal_idx_dir = args.dataset_file_path + args.dataset_file_name + '_normal_idx.pt'        # _book_normal_idx.pt
+    abnormal_idx_dir = args.dataset_file_path + args.dataset_file_name + '_abnormal_idx.pt'    # _book_abnormal_idx.pt
     if os.path.exists(normal_idx_dir):
         normal_idx = torch.load(normal_idx_dir)
         abnormal_idx = torch.load(abnormal_idx_dir)
@@ -258,6 +258,12 @@ def get_Dataframe(args):
         df_datasum = df_datasum.append(pd.read_csv(file_path + '5.csv'), ignore_index=True)
         df_datasum = df_datasum.append(pd.read_csv(file_path + '6.csv'), ignore_index=True)
         df_datasum = df_datasum.append(pd.read_csv(file_path + '7.csv'), ignore_index=True)
+        if args.object_select_mode:
+            df_objectlist = pd.read_csv(args.object_type_datafile_path)
+            print(args.object_type)
+            df_objectlist = df_objectlist[args.object_type]
+            object_dir_list = df_objectlist.to_list()
+            df_datasum = df_datasum[df_datasum['data_dir'].isin(object_dir_list)]
     else:
         # dataset_file_name == 'data_sum_motion' or 'data_sum_free'
         df_datasum = pd.read_csv(file_path + '0.csv')

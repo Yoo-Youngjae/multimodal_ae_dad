@@ -35,17 +35,21 @@ def get_config():
     parser.add_argument('--n_layer', type=int, default=5, help='number of layer(encoder)')
     parser.add_argument('--origin_datafile_path', type=str, default="/data_ssd/hsr_dropobject/data/")
     parser.add_argument('--dataset_file_path', type=str, default="dataset/")
-    parser.add_argument('--object_select_mode', action='store_true', default=False)
-    parser.add_argument('--object_type', type=str, default="bottle")
     parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
+
+
+    parser.add_argument('--object_select_mode', action='store_true', default=False)
+    parser.add_argument('--object_type', type=str, default="book")
+    parser.add_argument('--object_type_datafile_path', type=str, default="/data_ssd/hsr_dropobject/objectsplit.csv")
+
 
     parser.add_argument('--embedding_dim', type=int, default=512, help='embedding dimension')  # 32, 128, 512
     parser.add_argument('--batch_size', type=int, default=128, help='batch_size')  # 64
     parser.add_argument('--shuffle_batch', action='store_true', default=True)
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
-    parser.add_argument('--dataset_file_name', type=str, default="data_sum_free")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="Batch_128_best_f1score")
+    parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
+    parser.add_argument('--log_memo', type=str, default="Batch_128_bookonly")
 
 
     args = parser.parse_args()
@@ -295,6 +299,10 @@ if __name__ == '__main__':
         if epoch % 10 == 0:
             test(model, args, train_loader, valid_loader, test_loader,  writer, epoch//10)
             torch.cuda.empty_cache()
+
+    for epoch in range(11, 41):
+        test(model, args, train_loader, valid_loader, test_loader, writer, epoch)
+        torch.cuda.empty_cache()
 
         # test
         # base_auroc, val_loss, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx = evaluate(epoch,
