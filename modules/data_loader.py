@@ -190,7 +190,7 @@ def split_train_test(full_dataframe, args):
     abnormal_idx = []
     normal_idx_dir = args.dataset_file_path + args.dataset_file_name + '_normal_idx.pt'        # _book_normal_idx.pt
     abnormal_idx_dir = args.dataset_file_path + args.dataset_file_name + '_abnormal_idx.pt'    # _book_abnormal_idx.pt
-    if os.path.exists(normal_idx_dir):
+    if False: # os.path.exists(normal_idx_dir)
         normal_idx = torch.load(normal_idx_dir)
         abnormal_idx = torch.load(abnormal_idx_dir)
     else:
