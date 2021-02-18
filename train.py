@@ -321,6 +321,7 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
 
     sum_nap_auroc, sum_nap_aupr, sum_nap_f1scores = 0, 0, 0
+    torch.save(model.state_dict(), 'save/saveModel/'+log_name+'.pt')
     for epoch in range(11, 41):
         nap_auroc, nap_aupr, nap_f1scores = test(model, args, train_loader, valid_loader, test_loader, writer, epoch)
         sum_nap_auroc += nap_auroc
