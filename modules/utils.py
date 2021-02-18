@@ -27,12 +27,12 @@ def get_diffs(args, x, model):
         _diffs = []
         _x = _x.to(next(model.parameters()).device).float()
         x_tilde = model(_x)
-        _diffs.append((x_tilde - _x).view(batch_size, -1).cpu())
+        _diffs.append((x_tilde - _x).reshape(batch_size, -1).cpu())
 
         for layer in [model.encoder.lstm1, model.encoder.lstm2, model.encoder.lstm3, model.encoder.lstm4, model.encoder.lstm5]:
             _x = layer(_x)[0]               # x, state
             x_tilde = layer(x_tilde)[0]     # x, state
-            _diffs.append((x_tilde - _x).view(batch_size, -1).cpu())
+            _diffs.append((x_tilde - _x).reshape(batch_size, -1).cpu())
 
         # diffs.shape == 6, 128, 2048 * 3
         stacked.append(_diffs)

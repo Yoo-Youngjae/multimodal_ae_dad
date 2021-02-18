@@ -34,7 +34,7 @@ class Encoder(nn.Module):
         self.n_features = n_features
         self.embedding_dim = embedding_dim
 
-        use_batch_norm = False
+        use_batch_first = True
 
         hidden_sizes = get_hidden_layer_sizes(n_features, embedding_dim, args.n_layer-1)
 
@@ -43,27 +43,27 @@ class Encoder(nn.Module):
         self.lstm1 = nn.LSTM(input_size=layer_sizes[0],
                             hidden_size=layer_sizes[1],
                             num_layers=1,
-                            batch_first=use_batch_norm)
+                            batch_first=use_batch_first)
 
         self.lstm2 = nn.LSTM(input_size=layer_sizes[1],
                              hidden_size=layer_sizes[2],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         self.lstm3 = nn.LSTM(input_size=layer_sizes[2],
                              hidden_size=layer_sizes[3],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         self.lstm4 = nn.LSTM(input_size=layer_sizes[3],
                              hidden_size=layer_sizes[4],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         self.lstm5 = nn.LSTM(input_size=layer_sizes[4],
                              hidden_size=layer_sizes[5],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         # self.lstm = nn.LSTM(input_size=layer_sizes[0],
         #                      hidden_size=layer_sizes[5],
@@ -96,7 +96,7 @@ class Decoder(nn.Module):
         self.args = args
         self.seq_len = seq_len
         self.n_features = n_features
-        use_batch_norm = False
+        use_batch_first = True
 
         hidden_sizes = get_hidden_layer_sizes(input_dim, n_features, args.n_layer-1)
         layer_sizes = [input_dim] + hidden_sizes + [n_features]
@@ -106,27 +106,27 @@ class Decoder(nn.Module):
         self.lstm1 = nn.LSTM(input_size=layer_sizes[0],
                              hidden_size=layer_sizes[0],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         self.lstm2 = nn.LSTM(input_size=layer_sizes[0],
                              hidden_size=layer_sizes[1],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         self.lstm3 = nn.LSTM(input_size=layer_sizes[1],
                              hidden_size=layer_sizes[2],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         self.lstm4 = nn.LSTM(input_size=layer_sizes[2],
                              hidden_size=layer_sizes[3],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         self.lstm5 = nn.LSTM(input_size=layer_sizes[3],
                              hidden_size=layer_sizes[4],
                              num_layers=1,
-                             batch_first=use_batch_norm)
+                             batch_first=use_batch_first)
 
         # self.lstm = nn.LSTM(input_size=layer_sizes[0],
         #                      hidden_size=layer_sizes[4],

@@ -38,8 +38,8 @@ def get_config():
     parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
 
 
-    parser.add_argument('--object_select_mode', action='store_true', default=False)
-    parser.add_argument('--object_type', type=str, default="book")
+    parser.add_argument('--object_select_mode', action='store_true', default=True) # False
+    parser.add_argument('--object_type', type=str, default="book")          # cracker	doll	metalcup	eraser	cookies	book	plate	bottle
     parser.add_argument('--object_type_datafile_path', type=str, default="/data_ssd/hsr_dropobject/objectsplit.csv")
 
 
@@ -49,7 +49,7 @@ def get_config():
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="final_VAD")
+    parser.add_argument('--log_memo', type=str, default="book")
 
 
     args = parser.parse_args()
@@ -300,6 +300,7 @@ if __name__ == '__main__':
         if epoch % 10 == 0:
             nap_auroc, nap_aupr, nap_f1scores = test(model, args, train_loader, valid_loader, test_loader,  writer, epoch//10)
             torch.cuda.empty_cache()
+
     sum_nap_auroc, sum_nap_aupr, sum_nap_f1scores = 0, 0, 0
     for epoch in range(11, 41):
         nap_auroc, nap_aupr, nap_f1scores = test(model, args, train_loader, valid_loader, test_loader, writer, epoch)
