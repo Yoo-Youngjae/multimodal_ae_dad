@@ -23,7 +23,7 @@ def get_diffs(args, x, model):
     if args.ae_type == 'lstm':
         layerlist =[model.encoder.lstm1, model.encoder.lstm2, model.encoder.lstm3, model.encoder.lstm4, model.encoder.lstm5]
     else:
-        layerlist = model.encoder.layerlist
+        layerlist = model.encoder.layer_list
 
     stacked = []
     for _x in x:
