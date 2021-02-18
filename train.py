@@ -50,7 +50,7 @@ def get_config():
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="book")
+    parser.add_argument('--log_memo', type=str, default="aae")
 
 
     args = parser.parse_args()
@@ -254,6 +254,8 @@ if __name__ == '__main__':
     # Below line is solution for [RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method]
     # torch.multiprocessing.set_start_method('spawn')
     from model import model
+    from model.adversarial_auto_encoder import AdversarialAutoEncoder as AAE
+    from model.variational_auto_encoder import VariationalAutoEncoder as VAE
 
     args = get_config()
     ## For tensorboard
@@ -272,11 +274,26 @@ if __name__ == '__main__':
     args.n_features = get_n_features(args.sensor)
     n_features = args.n_features
     embedding_dim = args.embedding_dim
-    lstm = True
+    lstm = False
     if lstm:
         model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
     else:
-        model = model.DNN_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
+        model_type = 'aae'
+        if model_type == 'vae':
+            model = VAE(args,
+                    input_size=n_features,
+                    btl_size=embedding_dim,
+                    n_layers=args.n_layer,
+                    k=10
+            )
+        elif model_type == 'aae':
+            model = AAE(args,
+                        input_size=n_features,
+                        btl_size=embedding_dim,
+                        n_layers=args.n_layer,
+                    )
+        else: # model_type == 'ae
+            model = model.DNN_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
     model = model.to(args.device_id)
     print(model)
 

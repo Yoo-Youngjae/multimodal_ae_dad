@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-
+import torch.nn as nn
 def get_hidden_layer_sizes(start_size, end_size, n_hidden_layers):
     """
     It can handle both increasing & decreasing sizes automatically
@@ -168,3 +168,38 @@ class Truncater(Rotater):
             x_tilde = x_tilde + self.mu
 
             return x_tilde.numpy()
+
+class Loss(nn.Module):
+
+    def __init__(self, loss, weight=None, reduction='sum'):
+        self.reduction = reduction
+
+        super().__init__()
+
+        if loss == 'bce':
+            self.loss = nn.BCELoss(weight=weight, reduction=reduction)
+        elif loss == 'bce_with_logit':
+            self.loss = nn.BCEWithLogitsLoss(weight=weight, reduction=reduction)
+        elif loss == 'mse':
+            self.loss = nn.MSELoss(reduction=reduction)
+        elif loss == 'l1':
+            self.loss = nn.L1Loss(reduction=reduction)
+        elif loss == 'ce':
+            self.loss = nn.CrossEntropyLoss(weight=weight, reduction=reduction)
+        elif loss == 'nll':
+            self.loss = nn.NLLLoss(weight=weight, reduction=reduction)
+        else:
+            self.loss = None
+
+    def is_classification_task(self):
+        if isinstance(self.loss, nn.NLLLoss) or isinstance(self.loss, nn.CrossEntropyLoss):
+            return True
+        return False
+
+    def forward(self, y_hat, y):
+        if self.loss is not None:
+            if self.is_classification_task():
+                y = y.long()
+
+            return self.loss(y_hat, y)
+        return y_hat.mean()

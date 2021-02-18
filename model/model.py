@@ -166,16 +166,19 @@ class DNN_AE(nn.Module):
         super(DNN_AE, self).__init__()
         self.args = args
         self.multisensory_fusion = Multisensory_Fusion(args)
-        n_features = n_features * 3
+        # n_features = n_features * 3
         self.encoder = DNN_Encoder(seq_len, args, n_features, embedding_dim).to(args.device_id)
         self.decoder = DNN_Decoder(seq_len, args, embedding_dim, n_features).to(args.device_id)
 
-    def forward(self, r, d, m, t):
-        input_representation = self.multisensory_fusion(r, d, m, t)
+    def fusion(self, r, d, m, t):
+        return self.multisensory_fusion(r, d, m, t)
+
+    def forward(self, input_representation):
         input_representation = input_representation.to(self.args.device_id)
         x = self.encoder(input_representation)
         x = self.decoder(x)
-        return x, input_representation.reshape((self.args.batch_size, -1))
+        return x #, input_representation.reshape((self.args.batch_size, self.seq_len, self.n_features)) #((self.args.batch_size, -1))
+
 
 
 class DNN_Encoder(nn.Module):
@@ -208,8 +211,8 @@ class DNN_Encoder(nn.Module):
         self.net = nn.Sequential(*self.layer_list)
 
     def forward(self, x):
-        # x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
-        x = x.reshape((self.args.batch_size, -1))
+        x = x.reshape((self.args.batch_size, self.seq_len, self.n_features))
+        # x = x.reshape((self.args.batch_size, -1))
         return self.net(x)
 
 class DNN_Decoder(nn.Module):
@@ -242,8 +245,8 @@ class DNN_Decoder(nn.Module):
         self.net = nn.Sequential(*self.layer_list)
 
     def forward(self, x):
-        # x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
-        x = x.reshape((self.args.batch_size, -1))
+        x = x.reshape((self.args.batch_size, self.seq_len, self.input_dim))
+        # x = x.reshape((self.args.batch_size, -1))
         return self.net(x)
 
 
