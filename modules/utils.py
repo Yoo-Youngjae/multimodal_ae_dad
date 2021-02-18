@@ -34,10 +34,15 @@ def get_diffs(args, x, model):
         x_tilde = model(_x)
         _diffs.append((x_tilde - _x).reshape(batch_size, -1).cpu())
 
-        for layer in layerlist: #[model.encoder.lstm1, model.encoder.lstm2, model.encoder.lstm3, model.encoder.lstm4, model.encoder.lstm5]:
-            _x = layer(_x)[0]               # x, state
-            x_tilde = layer(x_tilde)[0]     # x, state
-            _diffs.append((x_tilde - _x).reshape(batch_size, -1).cpu())
+        for layer in layerlist:
+            if args.ae_type == 'lstm':
+                _x = layer(_x)[0]               # x, state
+                x_tilde = layer(x_tilde)[0]     # x, state
+                _diffs.append((x_tilde - _x).reshape(batch_size, -1).cpu())
+            else:
+                _x = layer(_x)
+                x_tilde = layer(x_tilde)
+                _diffs.append((x_tilde - _x).reshape(batch_size, -1).cpu())
 
         # diffs.shape == 6, 128, 2048 * 3
         stacked.append(_diffs)
