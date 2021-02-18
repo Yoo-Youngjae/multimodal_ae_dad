@@ -42,6 +42,8 @@ def get_config():
     parser.add_argument('--object_select_mode', action='store_true', default=True) # False
     parser.add_argument('--object_type', type=str, default="book")          # cracker	doll	metalcup	eraser	cookies	book	plate	bottle
     parser.add_argument('--object_type_datafile_path', type=str, default="/data_ssd/hsr_dropobject/objectsplit.csv")
+    parser.add_argument('--ae_type', type=str, default="lstm")
+
 
 
     parser.add_argument('--embedding_dim', type=int, default=512, help='embedding dimension')  # 32, 128, 512
@@ -274,26 +276,25 @@ if __name__ == '__main__':
     args.n_features = get_n_features(args.sensor)
     n_features = args.n_features
     embedding_dim = args.embedding_dim
-    lstm = False
-    if lstm:
+
+    if args.ae_type == 'lstm':
         model = model.LSTM_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
-    else:
-        model_type = 'aae'
-        if model_type == 'vae':
+
+    elif args.ae_type == 'vae':
             model = VAE(args,
                     input_size=n_features,
                     btl_size=embedding_dim,
                     n_layers=args.n_layer,
                     k=10
             )
-        elif model_type == 'aae':
-            model = AAE(args,
-                        input_size=n_features,
-                        btl_size=embedding_dim,
-                        n_layers=args.n_layer,
-                    )
-        else: # model_type == 'ae
-            model = model.DNN_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
+    elif args.ae_type == 'aae':
+        model = AAE(args,
+                    input_size=n_features,
+                    btl_size=embedding_dim,
+                    n_layers=args.n_layer,
+                )
+    else:   # model_type == 'ae
+        model = model.DNN_AE(args, seq_len, n_features, embedding_dim=embedding_dim)
     model = model.to(args.device_id)
     print(model)
 
