@@ -20,6 +20,11 @@ def get_diffs(args, x, model):
         x = torch.tensor(x)
     # x.shape == 234, 128, 3, 2048
 
+    if args.ae_type == 'lstm':
+        layerlist =[model.encoder.lstm1, model.encoder.lstm2, model.encoder.lstm3, model.encoder.lstm4, model.encoder.lstm5]
+    else:
+        layerlist = model.encoder.layerlist
+
     stacked = []
     for _x in x:
         # _x.shape == 128, 3, 2048
@@ -29,7 +34,7 @@ def get_diffs(args, x, model):
         x_tilde = model(_x)
         _diffs.append((x_tilde - _x).reshape(batch_size, -1).cpu())
 
-        for layer in [model.encoder.lstm1, model.encoder.lstm2, model.encoder.lstm3, model.encoder.lstm4, model.encoder.lstm5]:
+        for layer in layerlist: #[model.encoder.lstm1, model.encoder.lstm2, model.encoder.lstm3, model.encoder.lstm4, model.encoder.lstm5]:
             _x = layer(_x)[0]               # x, state
             x_tilde = layer(x_tilde)[0]     # x, state
             _diffs.append((x_tilde - _x).reshape(batch_size, -1).cpu())

@@ -39,7 +39,7 @@ def get_config():
     parser.add_argument('--sensor', type=str, default="All")  # All, force_torque,  mic, hand_camera
 
 
-    parser.add_argument('--object_select_mode', action='store_true', default=True) # False
+    parser.add_argument('--object_select_mode', action='store_true', default=False) # True
     parser.add_argument('--object_type', type=str, default="book")          # cracker	doll	metalcup	eraser	cookies	book	plate	bottle
     parser.add_argument('--object_type_datafile_path', type=str, default="/data_ssd/hsr_dropobject/objectsplit.csv")
     parser.add_argument('--ae_type', type=str, default="lstm")
