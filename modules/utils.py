@@ -77,7 +77,7 @@ class Rotater():
     def __init__(self, *args, **kwargs):
         self.mu, self.v = None, None
 
-    def fit(self, x, gpu_id=0):
+    def fit(self, x, gpu_id=1):
         with torch.no_grad():
             if isinstance(x, np.ndarray):
                 x = torch.from_numpy(x)
@@ -87,8 +87,6 @@ class Rotater():
             self.mu = x.mean(dim=0)
             x = x - self.mu
 
-
-            gpu_id = gpu_id+1
             device = torch.device('cuda:%d' % gpu_id)
 
             x = x.to(device)
@@ -98,7 +96,7 @@ class Rotater():
             if gpu_id >= 0:
                 self.v = self.v.cpu()
 
-    def run(self, x, gpu_id=0, max_size=20000):
+    def run(self, x, gpu_id=1, max_size=20000):
         with torch.no_grad():
             if isinstance(x, np.ndarray):
                 x = torch.from_numpy(x)
@@ -106,9 +104,6 @@ class Rotater():
             # |x| = (batch_size, dim)
 
             x = x - self.mu
-
-
-            gpu_id = gpu_id + 1
             device = torch.device('cpu') if gpu_id < 0 else torch.device('cuda:%d' % gpu_id)
 
             x = x.to(device)
@@ -149,7 +144,6 @@ class Truncater(Rotater):
             x = x - self.mu
 
             if gpu_id >= 0:
-                gpu_id = gpu_id + 1
                 device = torch.device('cpu') if gpu_id < 0 else torch.device('cuda:%d' % gpu_id)
 
                 x = x.to(device)

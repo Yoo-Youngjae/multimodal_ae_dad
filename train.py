@@ -28,6 +28,7 @@ def get_config():
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--clip', type=float, default=10, help='gradient clipping')
     parser.add_argument('--device_id', type=int, default=0, help='device id(default : 0)')
+    parser.add_argument('--nap_device_id', type=int, default=1, help='device id(default : 0)')
 
 
     parser.add_argument('--seq_len', type=int, default=3, help='sequence length')
@@ -209,7 +210,7 @@ def test(model, args, train_loader, valid_loader, test_loader,  writer, epoch):
             writer,
             epoch,
             f1_quantiles=f1_quantiles,
-            gpu_id=args.device_id,
+            gpu_id=args.nap_device_id,
             norm_type=2,
         )
 
