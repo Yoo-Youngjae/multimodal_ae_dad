@@ -42,7 +42,7 @@ def get_config():
     parser.add_argument('--object_select_mode', action='store_true', default=False) # True
     parser.add_argument('--object_type', type=str, default="book")          # cracker	doll	metalcup	eraser	cookies	book	plate	bottle
     parser.add_argument('--object_type_datafile_path', type=str, default="/data_ssd/hsr_dropobject/objectsplit.csv")
-    parser.add_argument('--ae_type', type=str, default="ae")
+    parser.add_argument('--ae_type', type=str, default="lstm")
 
 
 
@@ -52,7 +52,7 @@ def get_config():
     parser.add_argument('--workers', type=int, default=8, help='number of workers')
 
     parser.add_argument('--dataset_file_name', type=str, default="data_sum")   # data_sum, data_sum_free, data_sum_motion
-    parser.add_argument('--log_memo', type=str, default="ae_full")
+    parser.add_argument('--log_memo', type=str, default="lstm_full")
 
 
     args = parser.parse_args()
@@ -315,27 +315,9 @@ if __name__ == '__main__':
         # model.load_state_dict(best_model)
         print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss}')
 
-        # evaluation
-        if epoch % 10 == 0:
-            nap_auroc, nap_aupr, nap_f1scores = test(model, args, train_loader, valid_loader, test_loader,  writer, epoch//10)
-            torch.cuda.empty_cache()
 
-    sum_nap_auroc, sum_nap_aupr, sum_nap_f1scores = 0, 0, 0
     torch.save(model.state_dict(), 'save/saveModel/'+log_name+'.pt')
-    for epoch in range(11, 41):
-        nap_auroc, nap_aupr, nap_f1scores = test(model, args, train_loader, valid_loader, test_loader, writer, epoch)
-        sum_nap_auroc += nap_auroc
-        sum_nap_aupr += nap_aupr
-        sum_nap_f1scores += nap_f1scores
-        torch.cuda.empty_cache()
-
-        # test
-        # base_auroc, val_loss, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx = evaluate(epoch,
-        #     model, args, test_loader, valid_loader, writer, valid_log_idx, eval_normal_log_idx, eval_abnormal_log_idx)
-    print('sum_nap_auroc, sum_nap_aupr, sum_nap_f1scores', sum_nap_auroc/30, sum_nap_aupr/30, sum_nap_f1scores/30)
-    writer.add_scalar("Result/nap_auroc_avg", sum_nap_auroc/30, 0)
-    writer.add_scalar("Result/nap_aupr_avg", sum_nap_aupr/30, 0)
-    writer.add_scalar("Result/nap_f1scores_avg", sum_nap_f1scores/30, 0)
+    nap_auroc, nap_aupr, nap_f1scores = test(model, args, train_loader, valid_loader, test_loader, writer, 0)
     writer.close()
 
     # save eval
