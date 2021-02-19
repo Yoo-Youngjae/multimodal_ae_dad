@@ -133,8 +133,6 @@ class AdversarialAutoEncoder(AbstractModel):
 
         x = x.cuda(self.args.device_id)
 
-
-
         # update: decoder, encoder
         self.decoder_opt.zero_grad()
         self.encoder_opt.zero_grad()

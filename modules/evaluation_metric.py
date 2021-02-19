@@ -10,7 +10,7 @@ def get_norm(x, norm_type=2):
 def get_auc_roc(score, test_label, writer=None, epoch=None, mode=None):
     try:
         fprs, tprs, threshold = metrics.roc_curve(test_label, score)
-        # print(mode,'auroc', metrics.auc(fprs, tprs))
+        print(mode,'auroc', metrics.auc(fprs, tprs))
         if writer is not None:
             fig = plt.figure()
             plt.title('Receiver Operating Characteristic')
