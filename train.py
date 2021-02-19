@@ -245,9 +245,12 @@ def set_best_model(args, val_loss, best_val_loss, best_model, model):
     if best_val_loss is None:
         best_val_loss = val_loss
         best_model = deepcopy(model.state_dict())
+    elif val_loss is None:
+        pass
     elif val_loss < best_val_loss:
         best_val_loss = val_loss
         best_model = deepcopy(model.state_dict())
+
 
     return best_val_loss, best_model
 
