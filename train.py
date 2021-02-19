@@ -311,15 +311,13 @@ if __name__ == '__main__':
         train_loss, val_loss, train_log_idx, valid_log_idx = train(model, args, train_loader, writer, train_log_idx, valid_log_idx)
 
         # # set best model
-        # best_val_loss, best_model = set_best_model(args, val_loss, best_val_loss, best_model, model)
-        # model.load_state_dict(best_model)
+        best_val_loss, best_model = set_best_model(args, val_loss, best_val_loss, best_model, model)
+        model.load_state_dict(best_model)
         print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss}')
 
 
     torch.save(model.state_dict(), 'save/saveModel/'+log_name+'.pt')
+    epoch = 0
     nap_auroc, nap_aupr, nap_f1scores = test(model, args, train_loader, valid_loader, test_loader, writer, 0)
     writer.close()
-
-    # save eval
-    # torch.save(model.state_dict(), 'save/saveModel/'+log_name+'.pt')
 
