@@ -75,15 +75,18 @@ def train(model, args, train_loader, writer, train_log_idx, valid_log_idx):
         try:
             optimizer.zero_grad()
             input_representation = model.fusion(r, d, m, t)
-            train_output = model(input_representation)
-            loss = criterion(train_output, input_representation)
+            if args.ae_type == 'aae':
+                loss = model.step(input_representation)
+            else:
+                loss = model.get_loss_value(input_representation, input_representation)
+                loss.backward()
+                optimizer.step()
+
+            if args.ae_type == 'lstm':
+                # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
             writer.add_scalar("Train/train_loss", loss, train_log_idx)
             train_log_idx += 1
-            loss.backward()
-
-            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            optimizer.step()
             train_losses.append(loss.item())
         except Exception as e:
             # print(e)
@@ -319,8 +322,8 @@ if __name__ == '__main__':
         print(f'Epoch {epoch}: train loss {train_loss} val loss {val_loss}')
 
 
-    torch.save(model.state_dict(), 'save/saveModel/'+log_name+'.pt')
     epoch = 0
     nap_auroc, nap_aupr, nap_f1scores = test(model, args, train_loader, valid_loader, test_loader, writer, 0)
+    torch.save(model.state_dict(), 'save/saveModel/' + log_name + '.pt')
     writer.close()
 

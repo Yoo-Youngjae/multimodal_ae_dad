@@ -127,37 +127,35 @@ class AdversarialAutoEncoder(AbstractModel):
         G_loss = self.bce_loss(z_fake_pred, target_ones)
         return G_loss
 
-    # @staticmethod
-    # def step(engine, mini_batch):
-    #     engine.model.train()
-    #
-    #     x, _ = mini_batch
-    #     if engine.config.gpu_id >= 0:
-    #         x = x.cuda(engine.config.gpu_id)
-    #
-    #     # learning by back prop
-    #
-    #     # update: decoder, encoder
-    #     engine.model.decoder_opt.zero_grad()
-    #     engine.model.encoder_opt.zero_grad()
-    #     recon_loss = engine.model.get_recon_loss(x, None)
-    #     recon_loss.backward(retain_graph=True)
-    #     engine.model.decoder_opt.step()
-    #     engine.model.encoder_opt.step()
-    #
-    #     # update: discriminator
-    #     engine.model.discriminator_opt.zero_grad()
-    #     D_loss = engine.model.get_D_loss(x, None)
-    #     D_loss.backward(retain_graph=True)
-    #     engine.model.discriminator_opt.step()
-    #
-    #     # update: generator
-    #     engine.model.encoder_opt.zero_grad()
-    #     G_loss = engine.model.get_G_loss(x, None)
-    #     G_loss.backward(retain_graph=True)
-    #     engine.model.encoder_opt.step()
-    #
-    #     return float(recon_loss), float(D_loss), float(G_loss)
+
+    def step(self, x):
+        self.train()
+
+        x = x.cuda(self.args.device_id)
+
+
+
+        # update: decoder, encoder
+        self.decoder_opt.zero_grad()
+        self.encoder_opt.zero_grad()
+        recon_loss = self.get_recon_loss(x, None)
+        recon_loss.backward(retain_graph=True)
+        self.decoder_opt.step()
+        self.encoder_opt.step()
+
+        # update: discriminator
+        self.discriminator_opt.zero_grad()
+        D_loss = self.get_D_loss(x, None)
+        D_loss.backward(retain_graph=True)
+        self.discriminator_opt.step()
+
+        # update: generator
+        self.encoder_opt.zero_grad()
+        G_loss = self.get_G_loss(x, None)
+        G_loss.backward(retain_graph=True)
+        self.encoder_opt.step()
+
+        return float(recon_loss) #, float(D_loss), float(G_loss)
     #
     # @staticmethod
     # def validate(engine, mini_batch):

@@ -118,7 +118,7 @@ class VariationalAutoEncoder(AbstractModel):
             else:
                 loss = loss * (self.input_size / self.btl_size)
 
-        return loss, self.kl_loss(mu, logvar)
+        return loss + self.kl_loss(mu, logvar)
 
     # @staticmethod
     # def step(engine, mini_batch):

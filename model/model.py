@@ -169,6 +169,7 @@ class DNN_AE(nn.Module):
         # n_features = n_features * 3
         self.encoder = DNN_Encoder(seq_len, args, n_features, embedding_dim).to(args.device_id)
         self.decoder = DNN_Decoder(seq_len, args, embedding_dim, n_features).to(args.device_id)
+        self.criterion = nn.MSELoss(reduction='sum').to(args.device_id)
 
     def fusion(self, r, d, m, t):
         return self.multisensory_fusion(r, d, m, t)
@@ -178,6 +179,11 @@ class DNN_AE(nn.Module):
         x = self.encoder(input_representation)
         x = self.decoder(x)
         return x #, input_representation.reshape((self.args.batch_size, self.seq_len, self.n_features)) #((self.args.batch_size, -1))
+
+    def get_loss_value(self, x, y):
+        output = self(x)
+        loss = self.criterion(output, x)
+        return loss
 
 
 
