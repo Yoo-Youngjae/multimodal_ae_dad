@@ -14,6 +14,7 @@ class LSTM_AE(nn.Module):
         self.multisensory_fusion = Multisensory_Fusion(args)
         self.encoder = Encoder(seq_len, args, n_features, embedding_dim).to(args.device_id)
         self.decoder = Decoder(seq_len, args, embedding_dim, n_features).to(args.device_id)
+        self.criterion = nn.MSELoss(reduction='sum').to(args.device_id)
 
     def fusion(self, r, d, m, t):
         return self.multisensory_fusion(r, d, m, t)
@@ -23,6 +24,10 @@ class LSTM_AE(nn.Module):
         x, encoder_state = self.encoder(input_representation)
         x = self.decoder(x, encoder_state)
         return x
+    def get_loss_value(self, x, y):
+        output = self(x)
+        loss = self.criterion(output, x)
+        return loss
 
 
 

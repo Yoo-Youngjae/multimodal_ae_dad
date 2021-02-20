@@ -18,7 +18,7 @@ from modules.utils import get_diffs
 def get_config():
     parser = argparse.ArgumentParser(description='PyTorch Multimodal Time-series LSTM VAE Model')
 
-    parser.add_argument('--epochs', type=int, default=101, help='upper epoch limit') # 30
+    parser.add_argument('--epochs', type=int, default=13, help='upper epoch limit') # 30
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--lr', type=float, default=0.0005, help='initial learning rate')
     parser.add_argument('--lr_alpha', type=float, metavar='M', default=0.0005,
@@ -89,7 +89,7 @@ def train(model, args, train_loader, writer, train_log_idx, valid_log_idx):
             train_log_idx += 1
             train_losses.append(loss.item())
         except Exception as e:
-            # print(e)
+            print(e)
             continue
 
     with torch.no_grad():
