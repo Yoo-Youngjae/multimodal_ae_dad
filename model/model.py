@@ -133,11 +133,6 @@ class Decoder(nn.Module):
                              num_layers=1,
                              batch_first=use_batch_first)
 
-        # self.lstm = nn.LSTM(input_size=layer_sizes[0],
-        #                      hidden_size=layer_sizes[4],
-        #                      num_layers=5,
-        #                      batch_first=use_batch_norm)
-
         self.output_layer = nn.Linear(layer_sizes[4], layer_sizes[5])
 
 
