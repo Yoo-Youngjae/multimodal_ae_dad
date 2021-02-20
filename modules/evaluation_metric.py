@@ -169,8 +169,16 @@ def get_nap_loss(train_diffs,
                                 )
         precision, recall = get_confusion_matrix(score, test_label, threshold, writer, epoch, mode=mode)
     except Exception as e:
+        print(auc_roc)
         print(e)
-        f1_scores = 0
-        precision, recall = 0
+        score = np.isnan(score.values.any())
+        f1_scores, threshold = get_f1_score(get_norm(valid_rotateds, norm_type).mean(axis=1),
+                                            score,
+                                            test_label,
+                                            f1_quantiles=f1_quantiles
+                                            )
+        precision, recall = get_confusion_matrix(score, test_label, threshold, writer, epoch, mode=mode)
+
+
 
     return score, auc_roc, auc_prc, f1_scores, precision, recall
